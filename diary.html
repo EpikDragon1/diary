@@ -1,0 +1,4157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📚 Электронный дневник</title>
+<style>
+:root {
+  --bg: #f1f5f9; --surface: #ffffff; --surface-2: #f8fafc; --border: #e2e8f0;
+  --text: #0f172a; --text-muted: #64748b; --primary: #3b82f6; --primary-hover: #2563eb;
+  --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+  --admin: #f59e0b; --teacher: #8b5cf6; --parent: #ec4899; --student: #3b82f6;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08); --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+}
+[data-theme="dark"] {
+  --bg: #0f172a; --surface: #1e293b; --surface-2: #334155; --border: #334155;
+  --text: #f1f5f9; --text-muted: #94a3b8; --primary: #60a5fa; --primary-hover: #3b82f6;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3); --shadow-lg: 0 10px 25px rgba(0,0,0,0.4);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* Экран входа */
+.auth-screen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.auth-box {
+  background: var(--surface); padding: 35px; border-radius: 16px;
+  box-shadow: var(--shadow-lg); width: 100%; max-width: 440px;
+}
+.auth-box h1 { text-align: center; margin-bottom: 8px; font-size: 26px; }
+.auth-box .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 25px; font-size: 14px; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 13px; }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface-2); color: var(--text);
+  font-size: 14px; transition: border-color 0.2s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none; border-color: var(--primary);
+}
+.btn {
+  padding: 10px 18px; border: none; border-radius: 8px; font-size: 14px;
+  font-weight: 600; cursor: pointer; transition: all 0.2s;
+  display: inline-flex; align-items: center; gap: 6px; justify-content: center;
+}
+.btn-primary { background: var(--primary); color: white; width: 100%; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--border); }
+.btn-danger { background: var(--danger); color: white; }
+.btn-success { background: var(--success); color: white; }
+.btn-warning { background: var(--warning); color: white; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.auth-switch { text-align: center; margin-top: 16px; color: var(--text-muted); font-size: 13px; }
+.auth-switch a { color: var(--primary); cursor: pointer; font-weight: 500; }
+.error-msg {
+  background: #fee2e2; color: #991b1b; padding: 8px 12px; border-radius: 8px;
+  margin-bottom: 12px; font-size: 13px; display: none;
+}
+.error-msg.show { display: block; }
+
+/* Роли */
+.role-selector { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 15px; }
+.role-option {
+  padding: 12px 8px; border: 2px solid var(--border); border-radius: 10px;
+  text-align: center; cursor: pointer; transition: all 0.2s; font-size: 12px;
+}
+.role-option:hover { border-color: var(--primary); }
+.role-option.selected { border-color: var(--primary); background: var(--primary); color: white; }
+.role-option .icon { font-size: 24px; display: block; margin-bottom: 4px; }
+
+/* Интерфейс */
+.app { display: none; min-height: 100vh; }
+.app.active { display: flex; }
+.sidebar {
+  width: 260px; background: var(--surface); border-right: 1px solid var(--border);
+  padding: 15px 0; display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh;
+}
+.sidebar-header { padding: 0 18px 15px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.sidebar-header h2 { font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.user-info {
+  padding: 12px; background: var(--surface-2); margin: 0 12px 12px;
+  border-radius: 10px; display: flex; align-items: center; gap: 10px;
+}
+.user-avatar {
+  width: 40px; height: 40px; border-radius: 50%; color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold; font-size: 16px; flex-shrink: 0;
+}
+.avatar-student { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+.avatar-teacher { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+.avatar-parent { background: linear-gradient(135deg, #ec4899, #f472b6); }
+.avatar-admin { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+.user-name { font-weight: 600; font-size: 13px; }
+.user-role { font-size: 11px; color: var(--text-muted); }
+.role-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 8px;
+  font-size: 10px; font-weight: 600; margin-left: 4px;
+}
+.role-badge.student { background: #dbeafe; color: #1e40af; }
+.role-badge.teacher { background: #ede9fe; color: #6d28d9; }
+.role-badge.parent { background: #fce7f3; color: #be185d; }
+.role-badge.admin { background: #fef3c7; color: #92400e; }
+.nav-menu { flex: 1; padding: 0 8px; overflow-y: auto; }
+.nav-item {
+  padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 3px;
+  transition: all 0.2s; font-size: 13px; color: var(--text);
+}
+.nav-item:hover { background: var(--surface-2); }
+.nav-item.active { background: var(--primary); color: white; }
+.nav-item .icon { font-size: 16px; }
+.nav-section {
+  padding: 6px 12px; font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-top: 8px;
+}
+.sidebar-footer { padding: 12px 15px; border-top: 1px solid var(--border); }
+
+.main-content { flex: 1; padding: 25px; overflow-y: auto; max-width: calc(100vw - 260px); }
+.page-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+}
+.page-header h1 { font-size: 24px; }
+
+/* Карточки */
+.cards-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px; margin-bottom: 25px;
+}
+.card {
+  background: var(--surface); padding: 16px; border-radius: 12px;
+  box-shadow: var(--shadow); border: 1px solid var(--border);
+}
+.card-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; margin-bottom: 10px;
+}
+.card-icon.blue { background: #dbeafe; color: #1e40af; }
+.card-icon.green { background: #d1fae5; color: #065f46; }
+.card-icon.orange { background: #fed7aa; color: #9a3412; }
+.card-icon.red { background: #fee2e2; color: #991b1b; }
+.card-icon.purple { background: #ede9fe; color: #6d28d9; }
+.card-icon.pink { background: #fce7f3; color: #be185d; }
+.card-icon.yellow { background: #fef3c7; color: #92400e; }
+.card-value { font-size: 26px; font-weight: 700; margin-bottom: 3px; }
+.card-label { color: var(--text-muted); font-size: 13px; }
+
+/* Таблицы */
+.table-wrapper {
+  background: var(--surface); border-radius: 12px; overflow: hidden;
+  box-shadow: var(--shadow); border: 1px solid var(--border); margin-bottom: 18px;
+}
+.table-header {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px;
+}
+.table-header h3 { font-size: 16px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px 18px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+th {
+  background: var(--surface-2); font-weight: 600; color: var(--text-muted);
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover { background: var(--surface-2); }
+
+/* Оценки */
+.grade {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 7px;
+  font-weight: 700; font-size: 14px; margin: 2px;
+}
+.grade-5 { background: #d1fae5; color: #065f46; }
+.grade-4 { background: #dbeafe; color: #1e40af; }
+.grade-3 { background: #fed7aa; color: #9a3412; }
+.grade-2 { background: #fee2e2; color: #991b1b; }
+.grade-1 { background: #fecaca; color: #7f1d1d; }
+
+/* Задания */
+.task-item {
+  background: var(--surface); border-radius: 10px; padding: 14px;
+  margin-bottom: 10px; border: 1px solid var(--border);
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.task-item.done { opacity: 0.6; }
+.task-item.done .task-text { text-decoration: line-through; }
+.task-checkbox {
+  width: 22px; height: 22px; border: 2px solid var(--border);
+  border-radius: 6px; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; margin-top: 2px;
+}
+.task-checkbox.checked { background: var(--success); border-color: var(--success); color: white; }
+.task-content { flex: 1; }
+.task-subject { font-weight: 600; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; }
+.task-text { font-size: 13px; margin-bottom: 5px; }
+.task-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; flex-wrap: wrap; }
+.task-badge { padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.badge-urgent { background: #fee2e2; color: #991b1b; }
+.badge-soon { background: #fed7aa; color: #9a3412; }
+.badge-ok { background: #d1fae5; color: #065f46; }
+
+/* Расписание */
+.schedule-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px;
+}
+.day-card {
+  background: var(--surface); border-radius: 12px; padding: 15px;
+  box-shadow: var(--shadow); border: 1px solid var(--border);
+}
+.day-card h3 {
+  font-size: 15px; margin-bottom: 10px; padding-bottom: 8px;
+  border-bottom: 2px solid var(--primary); display: inline-block;
+}
+.lesson-item {
+  padding: 8px; background: var(--surface-2); border-radius: 7px;
+  margin-bottom: 6px; border-left: 3px solid var(--primary);
+  font-size: 13px; position: relative;
+}
+.lesson-time { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.lesson-name { font-weight: 600; }
+.lesson-room { font-size: 11px; color: var(--text-muted); }
+.lesson-actions {
+  position: absolute; top: 6px; right: 6px; display: flex; gap: 3px;
+  opacity: 0; transition: opacity 0.2s;
+}
+.lesson-item:hover .lesson-actions { opacity: 1; }
+.icon-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  width: 24px; height: 24px; border-radius: 5px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; transition: all 0.2s;
+}
+.icon-btn:hover { background: var(--danger); color: white; border-color: var(--danger); }
+.icon-btn.edit:hover { background: var(--primary); border-color: var(--primary); }
+
+/* Модальные окна */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 1000; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(4px);
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: var(--surface); border-radius: 14px; padding: 22px;
+  max-width: 550px; width: 100%; max-height: 90vh; overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;
+}
+.modal-header h3 { font-size: 18px; }
+.close-btn {
+  background: none; border: none; font-size: 22px; cursor: pointer;
+  color: var(--text-muted); line-height: 1;
+}
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+/* Уведомления */
+.toast {
+  position: fixed; top: 20px; right: 20px; background: var(--surface);
+  padding: 12px 18px; border-radius: 10px; box-shadow: var(--shadow-lg);
+  border-left: 4px solid var(--success); z-index: 2000;
+  animation: slideIn 0.3s; max-width: 320px; font-size: 13px;
+}
+.toast.error { border-left-color: var(--danger); }
+.toast.warning { border-left-color: var(--warning); }
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Статистика */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;
+}
+.chart-card {
+  background: var(--surface); padding: 18px; border-radius: 12px;
+  box-shadow: var(--shadow); border: 1px solid var(--border);
+}
+.chart-card h3 { margin-bottom: 12px; font-size: 15px; }
+.bar-chart { display: flex; flex-direction: column; gap: 8px; }
+.bar-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.bar-label { width: 130px; font-weight: 500; font-size: 12px; }
+.bar-track {
+  flex: 1; height: 22px; background: var(--surface-2);
+  border-radius: 6px; overflow: hidden;
+}
+.bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--primary), #60a5fa);
+  border-radius: 6px; display: flex; align-items: center; padding-left: 8px;
+  color: white; font-weight: 600; font-size: 11px;
+  transition: width 0.5s;
+}
+.bar-fill.gold { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.bar-fill.silver { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
+.bar-fill.bronze { background: linear-gradient(90deg, #c2410c, #ea580c); }
+
+/* Справка */
+.help-section {
+  background: var(--surface); padding: 20px; border-radius: 12px;
+  box-shadow: var(--shadow); border: 1px solid var(--border); margin-bottom: 15px;
+}
+.help-section h3 { margin-bottom: 12px; color: var(--primary); }
+.help-section p, .help-section li { font-size: 14px; line-height: 1.7; margin-bottom: 8px; }
+.help-section ul { padding-left: 20px; }
+.help-section code {
+  background: var(--surface-2); padding: 2px 6px; border-radius: 4px;
+  font-family: monospace; font-size: 12px;
+}
+.device-info {
+  background: var(--surface-2); padding: 12px; border-radius: 8px;
+  font-family: monospace; font-size: 12px; word-break: break-all;
+  margin-top: 8px;
+}
+
+/* Настройки */
+.settings-section {
+  background: var(--surface); padding: 18px; border-radius: 12px;
+  box-shadow: var(--shadow); border: 1px solid var(--border); margin-bottom: 15px;
+}
+.settings-section h3 { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 15px; }
+.setting-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.setting-row:last-child { border-bottom: none; }
+.switch { position: relative; width: 40px; height: 22px; }
+.switch input { display: none; }
+.slider {
+  position: absolute; inset: 0; background: var(--border);
+  border-radius: 22px; cursor: pointer; transition: 0.3s;
+}
+.slider:before {
+  content: ''; position: absolute; width: 16px; height: 16px;
+  left: 3px; top: 3px; background: white; border-radius: 50%; transition: 0.3s;
+}
+.switch input:checked + .slider { background: var(--primary); }
+.switch input:checked + .slider:before { transform: translateX(18px); }
+
+.empty-state { text-align: center; padding: 30px 15px; color: var(--text-muted); }
+.empty-state .icon { font-size: 40px; margin-bottom: 8px; }
+
+.person-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.person-card {
+  background: var(--surface); padding: 14px; border-radius: 10px;
+  border: 1px solid var(--border); cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; gap: 10px;
+}
+.person-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+.person-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  color: white; display: flex; align-items: center; justify-content: center;
+  font-weight: bold; font-size: 14px; flex-shrink: 0;
+}
+.person-info { flex: 1; min-width: 0; }
+.person-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.person-meta { font-size: 11px; color: var(--text-muted); }
+
+.info-banner {
+  padding: 12px 15px; border-radius: 10px; margin-bottom: 15px;
+  font-size: 13px; display: flex; align-items: center; gap: 10px;
+}
+.info-banner.info { background: #dbeafe; color: #1e40af; }
+.info-banner.warn { background: #fef3c7; color: #92400e; }
+.info-banner.danger { background: #fee2e2; color: #991b1b; }
+.info-banner.success { background: #d1fae5; color: #065f46; }
+
+.rank-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  font-weight: bold; font-size: 13px;
+}
+.rank-1 { background: #fbbf24; color: #78350f; }
+.rank-2 { background: #cbd5e1; color: #334155; }
+.rank-3 { background: #ea580c; color: #fff; }
+.rank-other { background: var(--surface-2); color: var(--text-muted); }
+
+@media (max-width: 768px) {
+  .app.active { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: relative; padding: 10px 0; }
+  .nav-menu { display: flex; overflow-x: auto; padding: 0 10px; }
+  .nav-item { white-space: nowrap; }
+  .sidebar-footer { display: none; }
+  .main-content { max-width: 100%; padding: 15px; }
+  .user-info { margin: 0 10px 10px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ЭКРАН ВХОДА -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <h1>📚 Электронный дневник</h1>
+    <p class="subtitle" id="authSubtitle">Для учеников, учителей и родителей</p>
+    
+    <div class="error-msg" id="authError"></div>
+    
+    <!-- Форма первого запуска (создание админа) -->
+    <div id="firstRunForm" style="display:none">
+      <div class="info-banner warn">
+        ⚠️ <div><b>Первый запуск системы!</b><br>Создайте аккаунт администратора. Он будет привязан к этому устройству.</div>
+      </div>
+      <div class="form-group">
+        <label>Логин администратора</label>
+        <input type="text" id="adminUsername" placeholder="admin">
+      </div>
+      <div class="form-group">
+        <label>Полное имя</label>
+        <input type="text" id="adminFullname" placeholder="Иванов Иван Иванович">
+      </div>
+      <div class="form-group">
+        <label>Название учебного заведения</label>
+        <input type="text" id="adminSchool" placeholder="Школа №1">
+      </div>
+      <div class="form-group">
+        <label>Пароль (мин. 8 символов)</label>
+        <input type="password" id="adminPassword">
+      </div>
+      <div class="form-group">
+        <label>Повторите пароль</label>
+        <input type="password" id="adminPassword2">
+      </div>
+      <button class="btn btn-warning" style="width:100%" onclick="createFirstAdmin()">👑 Создать администратора</button>
+    </div>
+    
+    <!-- Форма входа -->
+    <div id="loginForm" style="display:none">
+      <div class="info-banner warn">
+        ℹ️ <div><b>Регистрация закрыта.</b><br>Учеников и родителей добавляют только учителя и администратор. Учителя назначаются администратором.</div>
+      </div>
+      <div class="form-group">
+        <label>Имя пользователя</label>
+        <input type="text" id="loginUsername" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" id="loginPassword" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" onclick="login()">🔓 Войти</button>
+      <div style="margin-top:10px;text-align:center">
+        <button class="btn btn-secondary btn-sm" onclick="askResetPassword()" style="font-size:11px">🔄 Сбросить все данные</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h2>📚 Дневник</h2>
+    </div>
+    <div class="user-info">
+      <div class="user-avatar" id="userAvatar">И</div>
+      <div style="min-width:0;flex:1">
+        <div class="user-name" id="userName">Пользователь</div>
+        <div class="user-role">
+          <span class="role-badge student" id="roleBadge">Роль</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Переключатель классов (только для учителей) -->
+    <div id="classSwitcher" style="display:none; padding: 0 15px; margin-bottom: 10px;">
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">🏫 Класс</div>
+      <select id="classSelect" onchange="switchClass()" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13px; cursor: pointer;">
+      </select>
+    </div>
+    
+    <nav class="nav-menu" id="navMenu"></nav>
+    <div class="sidebar-footer">
+      <button class="btn btn-secondary" style="width:100%" onclick="logout()">🚪 Выйти</button>
+    </div>
+  </aside>
+
+  <main class="main-content" id="mainContent"></main>
+</div>
+
+<!-- МОДАЛЬНЫЕ ОКНА -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script>
+// ============ БЕЗОПАСНОСТЬ ============
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function generateSalt() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ============ ГЕНЕРАТОР НАДЁЖНЫХ ПАРОЛЕЙ ============
+function generateStrongPassword(length = 12) {
+  const upperCase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowerCase = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const special = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  
+  // Гарантируем минимум 1 заглавную, 1 строчную, 1 цифру, 1 спецсимвол
+  let password = '';
+  password += upperCase[Math.floor(Math.random() * upperCase.length)];
+  password += lowerCase[Math.floor(Math.random() * lowerCase.length)];
+  password += digits[Math.floor(Math.random() * digits.length)];
+  password += special[Math.floor(Math.random() * special.length)];
+  
+  // Заполняем оставшуюся длину всеми символами
+  const allChars = upperCase + lowerCase + digits + special;
+  for (let i = password.length; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  // Перемешиваем
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+// ============ УСТРОЙСТВО (DeviceID) ============
+function getDeviceId() {
+  let id = localStorage.getItem('diary_device_id');
+  if (!id) {
+    id = 'dev_' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem('diary_device_id', id);
+  }
+  return id;
+}
+
+// ============ ХРАНИЛИЩЕ ============
+const DB = {
+  getUsers() { 
+    try { return JSON.parse(localStorage.getItem('diary_users') || '{}'); } 
+    catch (e) { console.error('Ошибка чтения localStorage:', e); return {}; }
+  },
+  saveUsers(u) { 
+    try { localStorage.setItem('diary_users', JSON.stringify(u)); } 
+    catch (e) { console.error('Ошибка записи localStorage:', e); toast('❌ Ошибка сохранения данных', 'error'); }
+  },
+  getCurrent() { return localStorage.getItem('diary_current'); },
+  setCurrent(u) { localStorage.setItem('diary_current', u); },
+  clearCurrent() { localStorage.removeItem('diary_current'); }
+};
+
+// ============ ПРЕДМЕТЫ ============
+const DEFAULT_SUBJECTS = [
+  'Математика', 'Русский язык', 'Литература', 'История', 'Обществознание',
+  'Физика', 'Химия', 'Биология', 'География', 'Английский язык',
+  'Информатика', 'Физкультура', 'Музыка', 'ИЗО', 'Технология',
+  'ОБЖ', 'Алгебра', 'Геометрия', 'Родной язык', 'Краеведение'
+];
+
+function getAllSubjects() {
+  const users = DB.getUsers();
+  const custom = Object.values(users).filter(u => u.role === 'teacher')
+    .flatMap(t => (t.customSubjects || []));
+  return [...new Set([...DEFAULT_SUBJECTS, ...custom])];
+}
+
+function saveCustomSubjects(subjects) {
+  const users = DB.getUsers();
+  // Обновляем customSubjects у всех учителей
+  Object.keys(users).forEach(key => {
+    if (users[key].role === 'teacher') {
+      users[key].customSubjects = subjects;
+    }
+  });
+  DB.saveUsers(users);
+}
+
+// ============ КАСТОМНЫЕ БУКВЫ КЛАССОВ ============
+function getCustomClassLetters() {
+  try {
+    return JSON.parse(localStorage.getItem('diary_customClassLetters') || '[]');
+  } catch (e) {
+    console.error('Ошибка чтения кастомных букв:', e);
+    return [];
+  }
+}
+
+function saveCustomClassLetters(letters) {
+  try {
+    localStorage.setItem('diary_customClassLetters', JSON.stringify(letters));
+  } catch (e) {
+    console.error('Ошибка записи кастомных букв:', e);
+  }
+}
+
+function getAllClassLetters() {
+  const custom = getCustomClassLetters();
+  return ['А', 'Б', 'В', 'Г', ...custom];
+}
+
+function generateClassOptions(minClass = 1, maxClass = 11) {
+  const letters = getAllClassLetters();
+  const options = [];
+  for (let clsNum = minClass; clsNum <= maxClass; clsNum++) {
+    for (const letter of letters) {
+      options.push(clsNum + letter);
+    }
+  }
+  return options;
+}
+
+let currentUser = null;
+let currentViewStudent = null;
+let selectedRole = 'student';
+let currentPage = null;
+let currentClass = null; // Текущий выбранный класс (для учителей)
+
+// ============ АВТОРИЗАЦИЯ ============
+function showError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg; el.classList.add('show');
+}
+function hideError() { document.getElementById('authError').classList.remove('show'); }
+
+function showFirstRun() {
+  const el = id => document.getElementById(id);
+  el('firstRunForm').style.display = 'block';
+  el('loginForm').style.display = 'none';
+  if (el('registerForm')) el('registerForm').style.display = 'none';
+  el('authSubtitle').textContent = 'Первый запуск — создание администратора';
+  hideError();
+}
+function showLogin() {
+  const el = id => document.getElementById(id);
+  el('firstRunForm').style.display = 'none';
+  el('loginForm').style.display = 'block';
+  if (el('registerForm')) el('registerForm').style.display = 'none';
+  el('authSubtitle').textContent = 'Для учеников, учителей и родителей';
+  hideError();
+}
+
+// Создание первого админа
+async function createFirstAdmin() {
+  const users = DB.getUsers();
+  if (Object.values(users).some(u => u.role === 'admin')) {
+    return showError('Администратор уже существует');
+  }
+  
+  const username = document.getElementById('adminUsername').value.trim();
+  const fullname = document.getElementById('adminFullname').value.trim();
+  const school = document.getElementById('adminSchool').value.trim();
+  const pass = document.getElementById('adminPassword').value;
+  const pass2 = document.getElementById('adminPassword2').value;
+  
+  if (username.length < 3) return showError('Логин минимум 3 символа');
+  if (!fullname) return showError('Введите полное имя');
+  if (!school) return showError('Введите название учебного заведения');
+  if (pass.length < 8) return showError('Пароль минимум 8 символов');
+  if (pass !== pass2) return showError('Пароли не совпадают');
+  if (users[username]) return showError('Пользователь уже существует');
+  
+  const salt = generateSalt();
+  const hash = await hashPassword(salt + pass);
+  const deviceId = getDeviceId();
+  
+  users[username] = {
+    username, fullname, school, salt, hash,
+    role: 'admin',
+    adminDeviceId: deviceId, // ПРИВЯЗКА К УСТРОЙСТВУ
+    created: Date.now(),
+    settings: { theme: 'light' }
+  };
+  DB.saveUsers(users);
+  toast('✅ Администратор создан! Войдите в систему');
+  showLogin();
+  document.getElementById('loginUsername').value = username;
+}
+
+// Вход
+async function login() {
+  const username = document.getElementById('loginUsername').value.trim();
+  const pass = document.getElementById('loginPassword').value;
+  
+  if (!username || !pass) return showError('Введите логин и пароль');
+  
+  const users = DB.getUsers();
+  const user = users[username];
+  
+  if (!user) return showError('Неверный логин или пароль');
+  
+  const hash = await hashPassword(user.salt + pass);
+  if (hash !== user.hash) return showError('Неверный логин или пароль');
+  
+  // ПРОВЕРКА ПРИВЯЗКИ АДМИНА К УСТРОЙСТВУ
+  if (user.role === 'admin') {
+    const currentDeviceId = getDeviceId();
+    if (user.adminDeviceId && user.adminDeviceId !== currentDeviceId) {
+      return showError('🔒 Доступ запрещён: администратор привязан к другому устройству. Обратитесь к владельцу устройства для сброса привязки.');
+    }
+  }
+  
+  currentUser = { username, ...user };
+  DB.setCurrent(username);
+  startSession();
+}
+
+function logout() {
+  DB.clearCurrent();
+  currentUser = null;
+  currentViewStudent = null;
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('loginPassword').value = '';
+  initAuthScreen();
+}
+
+function startSession() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+  
+  document.getElementById('userName').innerHTML = `${escapeHtml(currentUser.fullname)} <span class="role-badge ${currentUser.role}">${roleLabel(currentUser.role)}</span>`;
+  const avatar = document.getElementById('userAvatar');
+  avatar.textContent = escapeHtml(currentUser.fullname.charAt(0).toUpperCase());
+  avatar.className = `user-avatar avatar-${currentUser.role}`;
+  
+  if (currentUser.settings.theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  
+  // Инициализация переключателя классов для учителей
+  if (currentUser.role === 'teacher') {
+    initClassSwitcher();
+  } else {
+    document.getElementById('classSwitcher').style.display = 'none';
+  }
+  
+  buildNavigation();
+  const firstPage = getFirstPage();
+  showPage(firstPage);
+}
+
+function roleLabel(role) {
+  return { student: 'Ученик', teacher: 'Учитель', parent: 'Родитель', admin: 'Администратор' }[role];
+}
+
+// ============ ПЕРЕКЛЮЧАТЕЛЬ КЛАССОВ ============
+function initClassSwitcher() {
+  const switcher = document.getElementById('classSwitcher');
+  const select = document.getElementById('classSelect');
+  
+  // Получаем все классы, где учитель может работать
+  let classes = [];
+  
+  if (currentUser.isHomeroomTeacher) {
+    // Классный руководитель видит свой класс
+    classes = [currentUser.homeroomClass];
+    currentClass = currentUser.homeroomClass;
+  } else {
+    // Обычный учитель видит только свои классы (где он ведёт предметы)
+    if (currentUser.classes && currentUser.classes.length > 0) {
+      classes = [...currentUser.classes];
+      currentClass = classes[0];
+    }
+  }
+  
+  if (classes.length === 0) {
+    switcher.style.display = 'none';
+    return;
+  }
+  
+  switcher.style.display = 'block';
+  select.innerHTML = classes.map(c => `<option value="${c}" ${c === currentClass ? 'selected' : ''}>${c}</option>`).join('');
+}
+
+function switchClass() {
+  const select = document.getElementById('classSelect');
+  currentClass = select.value;
+  
+  // Перерисовываем текущую страницу
+  if (currentPage) {
+    showPage(currentPage);
+  }
+  
+  toast('🏫 Класс переключён на ' + currentClass);
+}
+
+function getStudentsForCurrentClass() {
+  // Возвращает учеников для текущего выбранного класса
+  if (!currentClass) return [];
+  
+  const users = DB.getUsers();
+  return Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+}
+
+function getFirstPage() {
+  if (currentUser.role === 'student') return 'dashboard';
+  if (currentUser.role === 'teacher') return 'students';
+  if (currentUser.role === 'parent') return 'children';
+  if (currentUser.role === 'admin') return 'admin-dashboard';
+  return 'dashboard';
+}
+
+// ============ НАВИГАЦИЯ ============
+function buildNavigation() {
+  const nav = document.getElementById('navMenu');
+  let items = [];
+  
+  if (currentUser.role === 'student') {
+    items = [
+      { id: 'dashboard', icon: '🏠', label: 'Главная' },
+      { id: 'schedule', icon: '📅', label: 'Расписание' },
+      { id: 'grades', icon: '📊', label: 'Оценки' },
+      { id: 'tasks', icon: '📝', label: 'Задания' },
+      { id: 'stats', icon: '📈', label: 'Статистика' },
+      { id: 'help', icon: '❓', label: 'Справка' },
+      { id: 'settings', icon: '⚙️', label: 'Настройки' }
+    ];
+  } else if (currentUser.role === 'teacher') {
+    items = [
+      { id: 'students', icon: '👥', label: 'Мои ученики' },
+      { id: 'teacher-grades', icon: '📊', label: 'Журнал оценок' },
+      { id: 'teacher-tasks', icon: '📝', label: 'Задания' },
+      { id: 'teacher-stats', icon: '📈', label: 'Статистика' },
+      { id: 'help', icon: '❓', label: 'Справка' },
+      { id: 'settings', icon: '⚙️', label: 'Настройки' }
+    ];
+    // Для классных руководителей — добавляем раздел "Класс"
+    if (currentUser.isHomeroomTeacher) {
+      items.splice(1, 0, { id: 'homeroom-class', icon: '🏫', label: `Класс ${currentUser.homeroomClass}` });
+    }
+    // Для всех учителей — добавляем "Родители"
+    items.push({ id: 'teacher-parents', icon: '👨‍👩‍👧', label: 'Родители' });
+  } else if (currentUser.role === 'parent') {
+    items = [
+      { id: 'children', icon: '👨‍👩‍👧', label: 'Мои дети' },
+      { id: 'parent-grades', icon: '📊', label: 'Оценки' },
+      { id: 'parent-tasks', icon: '📝', label: 'Задания' },
+      { id: 'parent-schedule', icon: '📅', label: 'Расписание' },
+      { id: 'parent-stats', icon: '📈', label: 'Статистика' },
+      { id: 'help', icon: '❓', label: 'Справка' },
+      { id: 'settings', icon: '⚙️', label: 'Настройки' }
+    ];
+  } else if (currentUser.role === 'admin') {
+    items = [
+      { id: 'admin-dashboard', icon: '🏠', label: 'Панель управления' },
+      { id: 'admin-teachers', icon: '👨‍🏫', label: 'Учителя' },
+      { id: 'admin-students', icon: '👨‍🎓', label: 'Ученики' },
+      { id: 'admin-class-letters', icon: '🔤', label: 'Буквы классов' },
+      { id: 'admin-stats', icon: '📊', label: 'Статистика школы' },
+      { id: 'admin-rating', icon: '🏆', label: 'Рейтинг' },
+      { id: 'help', icon: '❓', label: 'Справка' },
+      { id: 'settings', icon: '⚙️', label: 'Настройки' }
+    ];
+  }
+  
+  nav.innerHTML = items.map(i => 
+    `<div class="nav-item" data-page="${i.id}" onclick="showPage('${i.id}')">
+      <span class="icon">${i.icon}</span> ${i.label}
+    </div>`
+  ).join('');
+}
+
+function showPage(pageId) {
+  currentPage = pageId;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navItem = document.querySelector(`.nav-item[data-page="${pageId}"]`);
+  if (navItem) navItem.classList.add('active');
+  renderPage(pageId);
+}
+
+// ============ РЕНДЕР СТРАНИЦ ============
+function renderPage(pageId) {
+  const main = document.getElementById('mainContent');
+  const r = currentUser.role;
+  
+  if (r === 'student') {
+    if (pageId === 'dashboard') main.innerHTML = renderStudentDashboard();
+    else if (pageId === 'schedule') main.innerHTML = renderStudentSchedule();
+    else if (pageId === 'grades') main.innerHTML = renderStudentGrades();
+    else if (pageId === 'tasks') main.innerHTML = renderStudentTasks();
+    else if (pageId === 'stats') main.innerHTML = renderStudentStats();
+    else if (pageId === 'help') main.innerHTML = renderHelp();
+    else if (pageId === 'settings') main.innerHTML = renderSettings();
+  } else if (r === 'teacher') {
+    // Инициализируем currentClass для всех страниц учителя
+    if (!currentClass && currentUser.isHomeroomTeacher) {
+      currentClass = currentUser.homeroomClass;
+    } else if (!currentClass && currentUser.classes && currentUser.classes.length > 0) {
+      currentClass = currentUser.classes[0];
+    }
+    
+    if (pageId === 'students') {
+      main.innerHTML = renderTeacherStudents();
+    }
+    else if (pageId === 'homeroom-class') main.innerHTML = renderHomeroomClass();
+    else if (pageId === 'teacher-grades') main.innerHTML = renderTeacherGrades();
+    else if (pageId === 'teacher-tasks') main.innerHTML = renderTeacherTasks();
+    else if (pageId === 'teacher-stats') main.innerHTML = renderTeacherStats();
+    else if (pageId === 'teacher-parents') main.innerHTML = renderTeacherParents();
+    else if (pageId === 'help') main.innerHTML = renderHelp();
+    else if (pageId === 'settings') main.innerHTML = renderSettings();
+  } else if (r === 'parent') {
+    if (pageId === 'children') main.innerHTML = renderParentChildren();
+    else if (pageId === 'parent-grades') main.innerHTML = renderParentGrades();
+    else if (pageId === 'parent-tasks') main.innerHTML = renderParentTasks();
+    else if (pageId === 'parent-schedule') main.innerHTML = renderParentSchedule();
+    else if (pageId === 'parent-stats') main.innerHTML = renderParentStats();
+    else if (pageId === 'help') main.innerHTML = renderHelp();
+    else if (pageId === 'settings') main.innerHTML = renderSettings();
+  } else if (r === 'admin') {
+    if (pageId === 'admin-dashboard') main.innerHTML = renderAdminDashboard();
+    else if (pageId === 'admin-teachers') main.innerHTML = renderAdminTeachers();
+    else if (pageId === 'admin-students') main.innerHTML = renderAdminStudents();
+    else if (pageId === 'admin-class-letters') main.innerHTML = renderAdminClassLetters();
+    else if (pageId === 'admin-stats') main.innerHTML = renderAdminStats();
+    else if (pageId === 'admin-rating') main.innerHTML = renderAdminRating();
+    else if (pageId === 'help') main.innerHTML = renderHelp();
+    else if (pageId === 'settings') main.innerHTML = renderSettings();
+  }
+}
+
+// ============ УЧЕНИК: ГЛАВНАЯ ============
+function renderStudentDashboard() {
+  const allGrades = Object.values(currentUser.grades).flat();
+  const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
+  const fives = allGrades.filter(g => g.value === 5).length;
+  const activeTasks = currentUser.tasks.filter(t => !t.done).length;
+  
+  const recent = [...allGrades].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const upcoming = currentUser.tasks.filter(t => !t.done).sort((a,b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 5);
+  
+  // Родители
+  const users = DB.getUsers();
+  const parentsList = (currentUser.parents || []).map(p => users[p]).filter(Boolean);
+  const parentsHtml = parentsList.length > 0
+    ? parentsList.map(p => `<div style="padding:6px 0;font-size:13px">👨‍👩‍👧 <b>${escapeHtml(p.fullname)}</b> <span style="color:var(--text-muted)">@${escapeHtml(p.username)}</span></div>`).join('')
+    : '<div style="padding:6px 0;font-size:13px;color:var(--text-muted)">Родители не добавлены</div>';
+  
+  return `
+    <div class="page-header">
+      <h1>Привет, ${escapeHtml(currentUser.fullname.split(' ')[0])}! 👋</h1>
+      <div style="color:var(--text-muted);font-size:13px">${new Date().toLocaleDateString('ru-RU', {weekday:'long',day:'numeric',month:'long'})}</div>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="card"><div class="card-icon blue">📊</div><div class="card-value">${avg}</div><div class="card-label">Средний балл</div></div>
+      <div class="card"><div class="card-icon green">✅</div><div class="card-value">${allGrades.length}</div><div class="card-label">Всего оценок</div></div>
+      <div class="card"><div class="card-icon orange">📝</div><div class="card-value">${activeTasks}</div><div class="card-label">Активных заданий</div></div>
+      <div class="card"><div class="card-icon red">⭐</div><div class="card-value">${fives}</div><div class="card-label">Пятёрок</div></div>
+    </div>
+    
+    <div class="table-wrapper">
+      <div class="table-header"><h3>👨‍👩‍👧 Мои родители</h3></div>
+      <div style="padding:15px">${parentsHtml}</div>
+    </div>
+    
+    <div class="table-wrapper">
+      <div class="table-header"><h3>📋 Последние оценки</h3></div>
+      ${recent.length === 0 ? '<div class="empty-state"><div class="icon">📊</div><p>Пока нет оценок</p></div>' :
+        `<table><thead><tr><th>Предмет</th><th>Оценка</th><th>Дата</th><th>Тип</th><th>Учитель</th></tr></thead><tbody>
+          ${recent.map(g => `<tr>
+            <td><b>${escapeHtml(g.subject)}</b></td>
+            <td><span class="grade grade-${g.value}">${g.value}</span></td>
+            <td>${formatDate(g.date)}</td>
+            <td>${escapeHtml(g.type || '—')}</td>
+            <td style="color:var(--text-muted);font-size:12px">${escapeHtml(g.teacher || '—')}</td>
+          </tr>`).join('')}
+        </tbody></table>`
+      }
+    </div>
+    
+    <div class="table-wrapper">
+      <div class="table-header"><h3>⏰ Ближайшие задания</h3></div>
+      ${upcoming.length === 0 ? '<div class="empty-state"><div class="icon">📝</div><p>Нет активных заданий</p></div>' :
+        upcoming.map(t => {
+          const badge = getTaskBadge(t.dueDate);
+          return `<div style="padding:10px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:600;font-size:13px">${escapeHtml(t.subject)}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(t.text)}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:12px">${formatDate(t.dueDate)}</div>
+              <span class="task-badge ${badge.class}">${escapeHtml(badge.text)}</span>
+            </div>
+          </div>`;
+        }).join('')
+      }
+    </div>
+  `;
+}
+
+// ============ УЧЕНИК: РАСПИСАНИЕ ============
+function renderStudentSchedule() {
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+  return `
+    <div class="page-header"><h1>📅 Расписание</h1></div>
+    <div class="info-banner info">ℹ️ Расписание доступно только для просмотра</div>
+    <div class="schedule-grid">
+      ${days.map(day => {
+        const lessons = currentUser.schedule[day] || [];
+        return `<div class="day-card">
+          <h3>${day}</h3>
+          ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
+            lessons.map(l => `<div class="lesson-item">
+              <div class="lesson-time">${l.time}</div>
+              <div class="lesson-name">${l.name}</div>
+              ${l.room ? `<div class="lesson-room">📍 Каб. ${l.room}</div>` : ''}
+            </div>`).join('')
+          }
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+// ============ УЧЕНИК: ОЦЕНКИ ============
+function renderStudentGrades() {
+  const subjects = Object.keys(currentUser.grades);
+  return `
+    <div class="page-header"><h1>📊 Мои оценки</h1></div>
+    <div class="info-banner info">ℹ️ Оценки ставят учителя. Вы можете только просматривать их.</div>
+    <div class="table-wrapper">
+      ${subjects.length === 0 ? '<div class="empty-state" style="padding:30px"><div class="icon">📊</div><p>Пока нет оценок</p></div>' :
+        `<table><thead><tr><th>Предмет</th><th>Оценки</th><th>Средний</th></tr></thead><tbody>
+          ${subjects.map(subj => {
+            const grades = currentUser.grades[subj];
+            const avg = (grades.reduce((s,g) => s + g.value, 0) / grades.length).toFixed(2);
+            return `<tr>
+              <td><b>${escapeHtml(subj)}</b></td>
+              <td>${grades.sort((a,b) => b.date.localeCompare(a.date)).map(g => 
+                `<span class="grade grade-${g.value}" title="${formatDate(g.date)} — ${escapeHtml(g.type || '')}">${g.value}</span>`
+              ).join('')}</td>
+              <td><b>${avg}</b></td>
+            </tr>`;
+          }).join('')}
+        </tbody></table>`
+      }
+    </div>
+  `;
+}
+
+// ============ УЧЕНИК: ЗАДАНИЯ ============
+function renderStudentTasks() {
+  const tasks = [...currentUser.tasks].sort((a,b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return a.dueDate.localeCompare(b.dueDate);
+  });
+  
+  return `
+    <div class="page-header"><h1>📝 Домашние задания</h1></div>
+    <div class="info-banner info">ℹ️ Задания добавляют учителя. Вы можете отмечать их выполненными.</div>
+    ${tasks.length === 0 ? '<div class="empty-state"><div class="icon">📝</div><p>Нет заданий</p></div>' :
+      tasks.map((t) => {
+        const idx = currentUser.tasks.indexOf(t);
+        const badge = getTaskBadge(t.dueDate);
+        return `<div class="task-item ${t.done ? 'done' : ''}">
+          <div class="task-checkbox ${t.done ? 'checked' : ''}" onclick="toggleStudentTask(${idx})">
+            ${t.done ? '✓' : ''}
+          </div>
+          <div class="task-content">
+            <div class="task-subject">
+              <span>${escapeHtml(t.subject)}</span>
+              <span class="task-badge ${t.done ? 'badge-ok' : badge.class}">${t.done ? 'Выполнено' : escapeHtml(badge.text)}</span>
+            </div>
+            <div class="task-text">${escapeHtml(t.text)}</div>
+            <div class="task-meta">
+              <span>📅 До ${formatDate(t.dueDate)}</span>
+              ${t.teacher ? `<span>👨‍🏫 ${escapeHtml(t.teacher)}</span>` : ''}
+            </div>
+          </div>
+        </div>`;
+      }).join('')
+    }
+  `;
+}
+
+function toggleStudentTask(idx) {
+  currentUser.tasks[idx].done = !currentUser.tasks[idx].done;
+  saveUser();
+  renderPage('tasks');
+}
+
+// ============ УЧЕНИК: СТАТИСТИКА ============
+function renderStudentStats() {
+  const subjects = Object.keys(currentUser.grades);
+  if (subjects.length === 0) {
+    return `<div class="page-header"><h1>📈 Статистика</h1></div>
+      <div class="empty-state"><div class="icon">📈</div><p>Добавьте оценки для статистики</p></div>`;
+  }
+  
+  const stats = subjects.map(s => {
+    const g = currentUser.grades[s];
+    return { subj: s, avg: g.reduce((a,x) => a + x.value, 0) / g.length, count: g.length };
+  }).sort((a,b) => b.avg - a.avg);
+  
+  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  Object.values(currentUser.grades).flat().forEach(g => distribution[g.value]++);
+  const total = Object.values(distribution).reduce((s,v) => s+v, 0);
+  const overallAvg = (Object.values(currentUser.grades).flat().reduce((s,g) => s + g.value, 0) / total).toFixed(2);
+  
+  // Место в классе
+  const users = DB.getUsers();
+  const classmates = Object.values(users).filter(u => u.role === 'student' && u.class === currentUser.class);
+  const classAvgs = classmates.map(c => {
+    const all = Object.values(c.grades || {}).flat();
+    return { name: c.fullname, avg: all.length ? all.reduce((s,g) => s + g.value, 0) / all.length : 0 };
+  }).sort((a,b) => b.avg - a.avg);
+  const myRank = classAvgs.findIndex(c => c.name === currentUser.fullname) + 1;
+  
+  // Родители
+  const parentsList = (currentUser.parents || []).map(p => users[p]).filter(Boolean);
+  const parentsHtml = parentsList.length > 0
+    ? parentsList.map(p => `<div style="padding:4px 0;font-size:13px">👨‍👩‍👧 <b>${escapeHtml(p.fullname)}</b></div>`).join('')
+    : '<div style="padding:4px 0;font-size:13px;color:var(--text-muted)">Родители не добавлены</div>';
+  
+  return `
+    <div class="page-header"><h1>📈 Моя статистика</h1></div>
+    
+    <div class="table-wrapper" style="margin-bottom:15px">
+      <div class="table-header"><h3>👨‍👩‍👧 Мои родители</h3></div>
+      <div style="padding:15px">${parentsHtml}</div>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="card"><div class="card-icon blue">📊</div><div class="card-value">${overallAvg}</div><div class="card-label">Общий средний балл</div></div>
+      <div class="card"><div class="card-icon green">🏆</div><div class="card-value">${myRank || '—'}</div><div class="card-label">Место в классе (из ${classmates.length})</div></div>
+      <div class="card"><div class="card-icon orange">⭐</div><div class="card-value">${distribution[5]}</div><div class="card-label">Пятёрок</div></div>
+      <div class="card"><div class="card-icon purple">📚</div><div class="card-value">${subjects.length}</div><div class="card-label">Предметов</div></div>
+    </div>
+    
+    <div class="stats-grid">
+      <div class="chart-card">
+        <h3>📊 Средний балл по предметам</h3>
+        <div class="bar-chart">
+          ${stats.map(s => `
+            <div class="bar-row">
+              <div class="bar-label">${s.subj}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(s.avg/5*100).toFixed(1)}%">${s.avg.toFixed(2)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>🎯 Распределение оценок</h3>
+        <div class="bar-chart">
+          ${[5,4,3,2,1].map(n => `
+            <div class="bar-row">
+              <div class="bar-label"><span class="grade grade-${n}">${n}</span></div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${total ? (distribution[n]/total*100) : 0}%">${distribution[n]} (${total ? (distribution[n]/total*100).toFixed(0) : 0}%)</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ УЧИТЕЛЬ: УЧЕНИКИ ============
+function renderTeacherStudents() {
+  const users = DB.getUsers();
+  
+  // Получаем учеников для текущего выбранного класса
+  let students = [];
+  if (currentClass) {
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  }
+  
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  const homeroomInfo = isHomeroom ? ` (классный руководитель ${currentUser.homeroomClass})` : '';
+  
+  // Классный руководитель видит все предметы своего класса, обычный учитель — только свои предметы
+  const accessInfo = isHomeroom 
+    ? `Вы видите <b>все предметы</b> учеников класса ${currentClass}.`
+    : `Вы можете ставить оценки и добавлять задания только по своим предметам: <b>${currentUser.subjects.join(', ')}</b>`;
+  
+  // Кнопки добавления только для классного руководителя
+  const actionButtons = isHomeroom ? `
+    <button class="btn btn-secondary" onclick="openImportStudentsModal()">📥 Импорт из файла</button>
+    <button class="btn btn-primary" onclick="openAddStudentModal()">➕ Добавить ученика</button>
+    <button class="btn btn-warning" onclick="printPasswords()">🖨️ Распечатать пароли</button>
+  ` : '<span style="color:var(--text-muted);font-size:12px">Добавление учеников доступно только классному руководителю</span>';
+  
+  return `
+    <div class="page-header">
+      <h1>👥 Ученики класса ${currentClass || ''}</h1>
+      <div style="display:flex;gap:8px">${actionButtons}</div>
+    </div>
+    
+    <div class="info-banner ${isHomeroom ? 'success' : 'info'}">
+      ${isHomeroom ? '🏫' : 'ℹ️'} <div><b>${isHomeroom ? 'Вы — классный руководитель' : 'Режим работы'}</b>${homeroomInfo}<br>${accessInfo}</div>
+    </div>
+    
+    ${students.length === 0 ? 
+    '<div class="empty-state"><div class="icon">👥</div><p>В классе пока нет учеников. Классный руководитель может добавить их через "Добавить ученика" или "Импорт из файла".</p></div>' :
+    `<div class="person-list">
+      ${students.map(s => {
+        const allGrades = isHomeroom 
+          ? Object.values(s.grades || {}).flat()
+          : Object.entries(s.grades || {}).flatMap(([subj, grades]) => currentUser.subjects.includes(subj) ? grades : []);
+        const avg = allGrades.length ? (allGrades.reduce((a,g) => a + g.value, 0) / allGrades.length).toFixed(2) : '—';
+        const tempPass = s.settings && s.settings.tempPassword ? escapeHtml(s.settings.tempPassword) : '—';
+        return `
+          <div class="person-card" onclick="selectStudent('${escapeHtml(s.username)}')">
+            <div class="person-avatar">${escapeHtml(s.fullname.charAt(0))}</div>
+            <div class="person-info">
+              <div class="person-name">${escapeHtml(s.fullname)}</div>
+              <div class="person-meta">${escapeHtml(s.class || '')} • Ср: ${avg}</div>
+              <div class="person-meta" style="font-size:10px;color:var(--text-muted)">Логин: ${escapeHtml(s.username)} | Пароль: ${tempPass}</div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>`
+  }
+  
+  ${currentViewStudent ? renderTeacherStudentDetails() : ''}
+`;
+}
+
+function renderTeacherStudentDetails() {
+  const users = DB.getUsers();
+  const student = users[currentViewStudent];
+  if (!student) return '';
+  
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  // Классный руководитель видит все предметы, обычный — только свои
+  const allStudentSubjects = isHomeroom 
+    ? Object.keys(student.grades || {})
+    : currentUser.subjects.filter(s => student.grades && student.grades[s]);
+  
+  const myGrades = {};
+  allStudentSubjects.forEach(s => {
+    if (student.grades && student.grades[s]) myGrades[s] = student.grades[s];
+  });
+  
+  const allGrades = Object.values(myGrades).flat();
+  const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
+  
+  const accessLabel = isHomeroom ? 'все предметы' : currentUser.subjects.join(', ');
+  
+  // Пароль ученика
+  const tempPass = student.settings && student.settings.tempPassword ? student.settings.tempPassword : 'Не задан';
+  
+  return `
+    <div class="table-wrapper" style="margin-top:20px">
+      <div class="table-header">
+        <h3>📋 ${escapeHtml(student.fullname)} — ${escapeHtml(student.class || '')}</h3>
+        <div>
+          <button class="btn btn-primary btn-sm" onclick="openGradeModalForStudent('${escapeHtml(student.username)}')">➕ Оценку</button>
+          <button class="btn btn-secondary btn-sm" onclick="openTaskModalForStudent('${escapeHtml(student.username)}')">📝 Задание</button>
+          ${currentUser.isHomeroomTeacher ? `<button class="btn btn-warning btn-sm" onclick="resetStudentPassword('${escapeHtml(student.username)}')">🔑 Новый пароль</button>` : ''}
+          <button class="btn btn-secondary btn-sm" onclick="currentViewStudent=null;renderPage('students')">✕ Закрыть</button>
+        </div>
+      </div>
+      <div style="padding:15px">
+        <div style="display:flex;gap:15px;margin-bottom:15px;flex-wrap:wrap">
+          <div class="card" style="flex:1;min-width:150px">
+            <div class="card-value">${avg}</div>
+            <div class="card-label">Средний балл (по вашим предметам)</div>
+          </div>
+          <div class="card" style="flex:1;min-width:150px">
+            <div class="card-value">${allGrades.length}</div>
+            <div class="card-label">Оценок от вас</div>
+          </div>
+          <div class="card" style="flex:1;min-width:150px">
+            <div class="card-value" style="font-size:14px;font-family:monospace">${escapeHtml(tempPass)}</div>
+            <div class="card-label">Пароль для входа</div>
+          </div>
+        </div>
+        
+        <h4 style="margin-bottom:10px;font-size:14px">Оценки (${escapeHtml(accessLabel)}):</h4>
+        ${Object.keys(myGrades).length === 0 ? '<p style="color:var(--text-muted);font-size:13px">Нет оценок</p>' :
+          `<table><thead><tr><th>Предмет</th><th>Оценки</th><th>Средний</th></tr></thead><tbody>
+            ${Object.entries(myGrades).map(([subj, grades]) => {
+              const a = (grades.reduce((s,g) => s + g.value, 0) / grades.length).toFixed(2);
+              return `<tr>
+                <td><b>${escapeHtml(subj)}</b></td>
+                <td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('')}</td>
+                <td><b>${a}</b></td>
+              </tr>`;
+            }).join('')}
+          </tbody></table>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+function selectStudent(username) {
+  currentViewStudent = username;
+  renderPage('students');
+}
+
+async function resetStudentPassword(username) {
+  const users = DB.getUsers();
+  const student = users[username];
+  if (!student) return;
+  
+  const newPass = generateStrongPassword(12);
+  const salt = generateSalt();
+  const hash = await hashPassword(salt + newPass);
+  
+  student.hash = hash;
+  student.salt = salt;
+  if (!student.settings) student.settings = {};
+  student.settings.tempPassword = newPass;
+  
+  DB.saveUsers(users);
+  toast(`✅ Новый пароль: ${newPass}`);
+  renderPage('students');
+}
+
+// ============ КЛАССНЫЙ РУКОВОДИТЕЛЬ: КЛАСС ============
+function renderHomeroomClass() {
+  const users = DB.getUsers();
+  const cls = currentUser.homeroomClass;
+  const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls);
+  
+  // Считаем статистику по классу
+  const allGrades = classStudents.flatMap(s => Object.values(s.grades || {}).flat());
+  const classAvg = allGrades.length ? (allGrades.reduce((s, g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
+  const fives = allGrades.filter(g => g.value === 5).length;
+  const activeTasks = classStudents.reduce((s, x) => s + (x.tasks || []).filter(t => !t.done).length, 0);
+  
+  // Рейтинг учеников
+  const ratings = classStudents.map(s => {
+    const grades = Object.values(s.grades || {}).flat();
+    return {
+      name: s.fullname,
+      avg: grades.length ? (grades.reduce((a, g) => a + g.value, 0) / grades.length).toFixed(2) : '—',
+      count: grades.length,
+      fives: grades.filter(g => g.value === 5).length
+    };
+  }).filter(s => s.count > 0).sort((a, b) => parseFloat(b.avg) - parseFloat(a.avg));
+  
+  return `
+    <div class="page-header">
+      <h1>🏫 Класс ${escapeHtml(cls)}</h1>
+      <div style="color:var(--text-muted);font-size:13px">Классный руководитель: ${escapeHtml(currentUser.fullname)}</div>
+    </div>
+    
+    <div class="info-banner success">
+      🏫 <div><b>Вы — классный руководитель класса ${cls}.</b><br>У вас есть доступ ко всем предметам и оценкам учеников этого класса.</div>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="card"><div class="card-icon blue">👨‍🎓</div><div class="card-value">${classStudents.length}</div><div class="card-label">Учеников в классе</div></div>
+      <div class="card"><div class="card-icon green">📊</div><div class="card-value">${classAvg}</div><div class="card-label">Средний балл класса</div></div>
+      <div class="card"><div class="card-icon orange">⭐</div><div class="card-value">${fives}</div><div class="card-label">Пятёрок у класса</div></div>
+      <div class="card"><div class="card-icon red">📝</div><div class="card-value">${activeTasks}</div><div class="card-label">Активных заданий</div></div>
+    </div>
+    
+    <div class="table-wrapper">
+      <div class="table-header"><h3>🏆 Рейтинг учеников класса</h3></div>
+      ${ratings.length === 0 ? '<div class="empty-state" style="padding:20px"><p>Нет оценок</p></div>' :
+        `<table>
+          <thead><tr><th>Место</th><th>Ученик</th><th>Средний балл</th><th>Оценок</th><th>Пятёрок</th><th>Действия</th></tr></thead>
+          <tbody>
+            ${ratings.map((s, i) => `<tr>
+              <td><span class="rank-badge ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other'}">${i + 1}</span></td>
+              <td><b>${escapeHtml(s.name)}</b></td>
+              <td><span class="grade grade-${Math.round(parseFloat(s.avg))}">${s.avg}</span></td>
+              <td>${s.count}</td>
+              <td>⭐ ${s.fives}</td>
+              <td><button class="btn btn-secondary btn-sm" onclick="currentViewStudent='${escapeHtml(users.find(u => u.fullname === s.name)?.username || '')}';showPage('students')">👁️</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`
+      }
+    </div>
+    
+    <div class="table-wrapper">
+      <div class="table-header"><h3>👨‍🎓 Все ученики класса</h3></div>
+      ${classStudents.length === 0 ? '<div class="empty-state" style="padding:20px"><p>В классе пока нет учеников</p></div>' :
+        `<div class="person-list">
+          ${classStudents.map(s => {
+            const grades = Object.values(s.grades || {}).flat();
+            const avg = grades.length ? (grades.reduce((a, g) => a + g.value, 0) / grades.length).toFixed(2) : '—';
+            const tasks = (s.tasks || []).filter(t => !t.done).length;
+            return `
+              <div class="person-card" onclick="currentViewStudent='${escapeHtml(s.username)}';showPage('students')">
+                <div class="person-avatar">${escapeHtml(s.fullname.charAt(0))}</div>
+                <div class="person-info">
+                  <div class="person-name">${escapeHtml(s.fullname)}</div>
+                  <div class="person-meta">Ср: ${avg} • Заданий: ${tasks}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>`
+      }
+    </div>
+  `;
+}
+
+function openAddStudentModal() {
+  openModal(`
+    <div class="modal-header">
+      <h3>Добавить ученика в класс ${currentUser.homeroomClass}</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="info-banner success">
+      🏫 Вы — классный руководитель ${currentUser.homeroomClass}. Ученик будет автоматически добавлен в ваш класс.
+    </div>
+    <div class="info-banner info">ℹ️ Ученик должен быть зарегистрирован в системе</div>
+    <div class="form-group">
+      <label>Логин ученика</label>
+      <input type="text" id="studentUsername" placeholder="username">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="addStudent()">Добавить</button>
+    </div>
+  `);
+}
+
+async function addStudent() {
+  // Только классный руководитель может добавлять учеников
+  if (!currentUser.isHomeroomTeacher) {
+    return toast('❌ Только классный руководитель может добавлять учеников в класс', 'error');
+  }
+  
+  const username = document.getElementById('studentUsername').value.trim();
+  const users = DB.getUsers();
+  
+  if (!users[username]) return toast('Пользователь не найден', 'error');
+  if (users[username].role !== 'student') return toast('Это не ученик', 'error');
+  if (currentUser.students.includes(username)) return toast('Ученик уже добавлен', 'error');
+  
+  // Генерируем пароль для ученика
+  const randomPass = generateStrongPassword(12);
+  const salt = generateSalt();
+  const hash = await hashPassword(salt + randomPass);
+  
+  // Если ученик уже существует — обновляем его пароль, иначе создаём новый
+  if (users[username]) {
+    users[username].hash = hash;
+    users[username].salt = salt;
+    if (!users[username].settings) users[username].settings = {};
+    users[username].settings.tempPassword = randomPass;
+  } else {
+    // Создаём нового ученика
+    users[username] = {
+      username,
+      fullname: username, // Заполним позже
+      salt, hash,
+      role: 'student',
+      class: currentUser.homeroomClass,
+      grades: {},
+      tasks: [],
+      schedule: {},
+      parents: [],
+      created: Date.now(),
+      settings: { theme: 'light', tempPassword: randomPass }
+    };
+  }
+  
+  currentUser.students.push(username);
+  
+  // Автоматически устанавливаем класс и привязку к классному руководителю
+  users[username].class = currentUser.homeroomClass;
+  users[username].homeroomTeacher = currentUser.username;
+  
+  saveUser();
+  DB.saveUsers(users);
+  closeModal();
+  renderPage('students');
+  toast('✅ Ученик добавлен в класс ' + currentUser.homeroomClass);
+}
+
+// ============ УЧИТЕЛЬ: ИМПОРТ УЧЕНИКОВ ============
+function openImportStudentsModal() {
+  // Только классный руководитель может импортировать учеников
+  if (!currentUser.isHomeroomTeacher) {
+    return toast('❌ Только классный руководитель может импортировать учеников', 'error');
+  }
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>📥 Импорт учеников в класс ${currentUser.homeroomClass}</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="info-banner info">
+      ℹ️ Вы импортируете учеников в класс <b>${currentUser.homeroomClass}</b>.<br>
+      Файл должен содержать строки формата: <b>Имя Фамилия Отчество</b> (каждый ученик с новой строки).<br>
+      Поддерживаются .txt и .csv файлы. Разделитель — пробел или табуляция.
+    </div>
+    <div class="form-group">
+      <label>Файл (.txt / .csv)</label>
+      <input type="file" id="importStudentsFile" accept=".txt,.csv">
+    </div>
+    <div id="importPreview" style="display:none">
+      <h4 style="margin-bottom:8px;font-size:14px">📋 Предпросмотр учеников:</h4>
+      <div id="importPreviewList" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--surface-2)"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="processImportStudents()" id="btnImportStudents" disabled>📥 Импортировать</button>
+    </div>
+  `);
+  
+  // Сброс
+  window._importParsedStudents = [];
+  
+  const fileInput = document.getElementById('importStudentsFile');
+  fileInput.onchange = function() {
+    const file = fileInput.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      
+      window._importParsedStudents = [];
+      const previewList = document.getElementById('importPreviewList');
+      
+      lines.forEach((line, idx) => {
+        // Разделяем по пробелам
+        const parts = line.split(/\s+/).map(p => p.trim()).filter(p => p.length > 0);
+        
+        if (parts.length >= 2) {
+          // Проверяем что это не заголовок
+          const lower = parts.join(' ').toLowerCase();
+          if (lower.includes('имя') && lower.includes('фамилия')) return;
+          
+          const student = {
+            fullName: parts.slice(0, 3).join(' '),
+            parts: parts
+          };
+          window._importParsedStudents.push(student);
+        }
+      });
+      
+      const count = window._importParsedStudents.length;
+      
+      if (count > 0) {
+        document.getElementById('importPreview').style.display = 'block';
+        document.getElementById('btnImportStudents').disabled = false;
+        
+        previewList.innerHTML = window._importParsedStudents.map((s, i) => 
+          `<div style="padding:4px 0;font-size:13px;border-bottom:1px solid var(--border)">${i+1}. <b>${s.fullName}</b></div>`
+        ).join('');
+      } else {
+        document.getElementById('importPreview').style.display = 'block';
+        previewList.innerHTML = '<p style="color:var(--danger);font-size:13px">Не найдено учеников. Проверьте формат: каждая строка — "Имя Фамилия Отчество"</p>';
+        document.getElementById('btnImportStudents').disabled = true;
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+}
+
+async function processImportStudents() {
+  const cls = currentUser.homeroomClass; // Классный руководитель импортирует только в свой класс
+  const students = window._importParsedStudents || [];
+  
+  if (students.length === 0) return toast('Нет учеников для импорта', 'error');
+  
+  const users = DB.getUsers();
+  let imported = 0;
+  
+  for (const s of students) {
+    // Генерируем логин из фамилии: фамилия + первая буква имени
+    const lastName = s.parts[0] || '';
+    const firstName = s.parts[1] || '';
+    const initial = firstName.charAt(0).toUpperCase();
+    let username = lastName.toLowerCase() + initial;
+    
+    // Уникальный логин
+    let baseUsername = username;
+    let counter = 1;
+    while (users[username]) {
+      username = baseUsername + counter;
+      counter++;
+    }
+    
+    // Генерируем случайный пароль
+    const randomPass = generateStrongPassword(12);
+    const salt = generateSalt();
+    const hash = await hashPassword(salt + randomPass);
+    
+    users[username] = {
+      username,
+      fullname: s.fullName,
+      salt, hash,
+      role: 'student',
+      class: cls,
+      grades: {},
+      tasks: [],
+      schedule: {},
+      parents: [],
+      created: Date.now(),
+      settings: { theme: 'light', tempPassword: randomPass }
+    };
+    
+    // Добавляем в список классного руководителя
+    if (!currentUser.students.includes(username)) {
+      currentUser.students.push(username);
+    }
+    
+    // Привязываем к классному руководителю
+    users[username].homeroomTeacher = currentUser.username;
+    
+    imported++;
+  }
+  
+  DB.saveUsers(users);
+  saveUser();
+  closeModal();
+  renderPage('students');
+  toast(`✅ Импортировано ${imported} учеников в класс ${cls}`);
+}
+
+// ============ УЧИТЕЛЬ: ПЕЧАТЬ ПАРОЛЕЙ ============
+function printPasswords() {
+  if (!currentUser.isHomeroomTeacher) return;
+  if (!currentClass) return toast('Выберите класс', 'warning');
+  
+  const users = DB.getUsers();
+  const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  
+  if (classStudents.length === 0) {
+    return toast('В классе нет учеников', 'warning');
+  }
+  
+  // Сортируем по фамилии
+  classStudents.sort((a, b) => a.fullname.localeCompare(b.fullname, 'ru'));
+  
+  // Создаём печатную таблицу
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Логины и пароли учеников - ${currentUser.homeroomClass}</title>
+      <style>
+        body {
+          font-family: 'Times New Roman', serif;
+          padding: 40px;
+          color: #000;
+        }
+        h1 {
+          text-align: center;
+          font-size: 18px;
+          margin-bottom: 5px;
+        }
+        .subtitle {
+          text-align: center;
+          font-size: 14px;
+          color: #555;
+          margin-bottom: 30px;
+        }
+        .school-name {
+          text-align: center;
+          font-size: 13px;
+          margin-bottom: 20px;
+          font-style: italic;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 20px;
+        }
+        th, td {
+          border: 1px solid #000;
+          padding: 8px 12px;
+          text-align: left;
+          font-size: 13px;
+        }
+        th {
+          background: #f0f0f0;
+          font-weight: bold;
+          text-align: center;
+        }
+        tr:nth-child(even) {
+          background: #fafafa;
+        }
+        .row-number {
+          text-align: center;
+          width: 40px;
+        }
+        .username-col {
+          font-weight: bold;
+        }
+        .password-col {
+          font-family: monospace;
+          font-size: 14px;
+          letter-spacing: 1px;
+        }
+        .footer {
+          margin-top: 40px;
+          font-size: 12px;
+          color: #555;
+        }
+        .signature {
+          margin-top: 30px;
+          display: flex;
+          justify-content: space-between;
+        }
+        .signature div {
+          border-top: 1px solid #000;
+          width: 200px;
+          text-align: center;
+          padding-top: 5px;
+          font-size: 12px;
+        }
+        @media print {
+          body { padding: 20px; }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print" style="text-align:center;margin-bottom:20px">
+        <button onclick="window.print()" style="padding:10px 20px;font-size:14px;cursor:pointer;background:#3b82f6;color:white;border:none;border-radius:5px">🖨️ Распечатать</button>
+        <button onclick="window.close()" style="padding:10px 20px;font-size:14px;cursor:pointer;background:#6b7280;color:white;border:none;border-radius:5px;margin-left:10px">Закрыть</button>
+      </div>
+      
+      <h1>ЛОГИНЫ И ПАРОЛИ ДЛЯ ВХОДА В СИСТЕМУ</h1>
+      <div class="subtitle">Класс: ${currentUser.homeroomClass}</div>
+      <div class="school-name">${currentUser.school || 'Учебное заведение'}</div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th class="row-number">№</th>
+            <th>ФИО ученика</th>
+            <th>Логин</th>
+            <th>Пароль</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${classStudents.map((s, i) => `
+            <tr>
+              <td class="row-number">${i + 1}</td>
+              <td>${escapeHtml(s.fullname)}</td>
+              <td class="username-col">${escapeHtml(s.username)}</td>
+              <td class="password-col">${s.settings && s.settings.tempPassword ? escapeHtml(s.settings.tempPassword) : 'Не задан'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      
+      <div class="footer">
+        <p>Дата формирования: ${new Date().toLocaleDateString('ru-RU', {year: 'numeric', month: 'long', day: 'numeric'})}</p>
+        <p style="font-size:11px;color:#888;margin-top:5px">Данный документ содержит конфиденциальные данные. Хранить в доступном для учеников месте.</p>
+      </div>
+      
+      <div class="signature">
+        <div>Классный руководитель<br>${currentUser.fullname}</div>
+        <div>Подпись / Дата</div>
+      </div>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+// ============ УЧИТЕЛЬ: ЖУРНАЛ ОЦЕНОК ============
+function renderTeacherGrades() {
+  const users = DB.getUsers();
+  
+  // Получаем учеников текущего класса
+  let students = [];
+  if (currentClass) {
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  }
+  
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  
+  // Определяем предметы для отображения
+  let displaySubjects = [...new Set(currentUser.subjects)];
+  if (isHomeroom) {
+    students.forEach(s => {
+      Object.keys(s.grades || {}).forEach(subj => {
+        if (!displaySubjects.includes(subj)) displaySubjects.push(subj);
+      });
+    });
+  }
+  
+  if (students.length === 0) {
+    return `<div class="page-header"><h1>📊 Журнал оценок</h1></div>
+      <div class="empty-state"><div class="icon">👥</div><p>Сначала добавьте учеников</p></div>`;
+  }
+  
+  const accessInfo = isHomeroom 
+    ? `🏫 Вы видите <b>все предметы</b> учеников вашего класса ${currentClass}`
+    : `ℹ️ Вы можете ставить оценки только по своим предметам: <b>${currentUser.subjects.join(', ')}</b>`;
+  
+  return `
+    <div class="page-header">
+      <h1>📊 Журнал оценок</h1>
+      <button class="btn btn-primary" onclick="openGradeModalForStudent()">➕ Поставить оценку</button>
+    </div>
+    <div class="info-banner ${isHomeroom ? 'success' : 'info'}">${accessInfo}</div>
+    
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Ученик</th>
+            ${displaySubjects.map(s => `<th>${s}</th>`).join('')}
+            <th>Средний</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${students.map(s => {
+            let total = 0, count = 0;
+            const cells = displaySubjects.map(subj => {
+              const grades = (s.grades && s.grades[subj]) || [];
+              const avg = grades.length ? (grades.reduce((a,g) => a + g.value, 0) / grades.length).toFixed(1) : '—';
+              if (grades.length) { total += grades.reduce((a,g) => a + g.value, 0); count += grades.length; }
+              return `<td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>'} <small style="color:var(--text-muted)">${avg}</small></td>`;
+            }).join('');
+            const totalAvg = count ? (total / count).toFixed(2) : '—';
+            return `<tr>
+              <td><b>${escapeHtml(s.fullname)}</b><br><small style="color:var(--text-muted)">${escapeHtml(s.class || '')}</small></td>
+              ${cells}
+              <td><b>${totalAvg}</b></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ============ УЧИТЕЛЬ: ЗАДАНИЯ ============
+function renderTeacherTasks() {
+  const users = DB.getUsers();
+  
+  // Получаем учеников текущего класса
+  let students = [];
+  if (currentClass) {
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  }
+  
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  
+  const allTasks = [];
+  students.forEach(s => {
+    (s.tasks || []).forEach(t => {
+      if (isHomeroom) {
+        // Классный руководитель видит все задания учеников класса
+        allTasks.push({ ...t, studentName: s.fullname, studentUsername: s.username });
+      } else {
+        // Обычный учитель — только по своим предметам
+        if (currentUser.subjects.includes(t.subject) || t.teacherUsername === currentUser.username) {
+          allTasks.push({ ...t, studentName: s.fullname, studentUsername: s.username });
+        }
+      }
+    });
+  });
+  
+  allTasks.sort((a,b) => b.created - a.created);
+  
+  const infoText = isHomeroom
+    ? `🏫 Задания всех учеников вашего класса ${currentClass}`
+    : `ℹ️ Задания отображаются по вашим предметам у учеников класса ${currentClass}`;
+  
+  return `
+    <div class="page-header">
+      <h1>📝 Задания</h1>
+      <button class="btn btn-primary" onclick="openTaskModalForStudent()">➕ Новое задание</button>
+    </div>
+    
+    <div class="info-banner ${isHomeroom ? 'success' : 'info'}">${infoText}</div>
+    
+    ${allTasks.length === 0 ? '<div class="empty-state"><div class="icon">📝</div><p>Нет заданий</p></div>' :
+      `<div class="table-wrapper">
+        <table>
+          <thead><tr><th>Ученик</th><th>Предмет</th><th>Задание</th><th>Срок</th><th>Статус</th></tr></thead>
+          <tbody>
+            ${allTasks.map(t => {
+              const badge = getTaskBadge(t.dueDate);
+              return `<tr>
+                <td><b>${escapeHtml(t.studentName)}</b></td>
+                <td>${escapeHtml(t.subject)}</td>
+                <td style="max-width:300px">${escapeHtml(t.text)}</td>
+                <td>${formatDate(t.dueDate)}</td>
+                <td><span class="task-badge ${t.done ? 'badge-ok' : badge.class}">${t.done ? '✓ Выполнено' : escapeHtml(badge.text)}</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`
+    }
+  `;
+}
+
+// ============ УЧИТЕЛЬ: СТАТИСТИКА ============
+function renderTeacherStats() {
+  const users = DB.getUsers();
+  
+  // Получаем учеников текущего класса
+  let students = [];
+  if (currentClass) {
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  }
+  
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  
+  if (students.length === 0) {
+    return `<div class="page-header"><h1>📈 Статистика</h1></div>
+      <div class="empty-state"><div class="icon">📈</div><p>Добавьте учеников</p></div>`;
+  }
+  
+  // Определяем предметы для статистики
+  let statsSubjects = [...new Set(currentUser.subjects)];
+  if (isHomeroom) {
+    students.forEach(s => {
+      Object.keys(s.grades || {}).forEach(subj => {
+        if (!statsSubjects.includes(subj)) statsSubjects.push(subj);
+      });
+    });
+  }
+  
+  const subjectStats = {};
+  statsSubjects.forEach(subj => {
+    const all = [];
+    students.forEach(s => {
+      if (s.grades && s.grades[subj]) all.push(...s.grades[subj]);
+    });
+    if (all.length) {
+      subjectStats[subj] = {
+        avg: (all.reduce((a,g) => a + g.value, 0) / all.length).toFixed(2),
+        count: all.length,
+        fives: all.filter(g => g.value === 5).length
+      };
+    }
+  });
+  
+  const studentAvgs = students.map(s => {
+    const all = [];
+    statsSubjects.forEach(subj => {
+      if (s.grades && s.grades[subj]) all.push(...s.grades[subj]);
+    });
+    return {
+      name: s.fullname,
+      avg: all.length ? (all.reduce((a,g) => a + g.value, 0) / all.length) : 0,
+      count: all.length
+    };
+  }).filter(s => s.count > 0).sort((a,b) => b.avg - a.avg);
+  
+  return `
+    <div class="page-header"><h1>📈 Статистика</h1></div>
+    
+    <div class="cards-grid">
+      <div class="card"><div class="card-icon blue">👨‍🎓</div><div class="card-value">${students.length}</div><div class="card-label">Учеников в классе ${currentClass}</div></div>
+      <div class="card"><div class="card-icon green">📊</div><div class="card-value">${subjectStats.length}</div><div class="card-label">Предметов</div></div>
+    </div>
+    
+    <div class="stats-grid">
+      <div class="chart-card">
+        <h3>📊 Рейтинг учеников</h3>
+        ${studentAvgs.length === 0 ? '<p style="color:var(--text-muted)">Нет данных</p>' :
+          `<table style="width:100%">
+            <thead><tr><th>Место</th><th>Ученик</th><th>Средний балл</th><th>Оценок</th></tr></thead>
+            <tbody>
+              ${studentAvgs.map((s, i) => `<tr>
+                <td><span class="rank-badge ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other'}">${i + 1}</span></td>
+                <td><b>${escapeHtml(s.name)}</b></td>
+                <td><span class="grade grade-${Math.round(s.avg)}">${s.avg.toFixed(2)}</span></td>
+                <td>${s.count}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`
+        }
+      </div>
+      
+      <div class="chart-card">
+        <h3>📚 По предметам</h3>
+        <div class="bar-chart">
+          ${Object.entries(subjectStats).map(([subj, stats]) => `
+            <div class="bar-row">
+              <div class="bar-label">${subj}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(parseFloat(stats.avg)/5*100).toFixed(1)}%">${stats.avg} (${stats.count})</div>
+              </div>
+            </div>
+          `).join('') || '<p style="color:var(--text-muted)">Нет данных</p>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ УЧИТЕЛЬ: РОДИТЕЛИ ============
+function renderTeacherParents() {
+  const users = DB.getUsers();
+  
+  // Получаем учеников текущего класса
+  let students = [];
+  if (currentClass) {
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  }
+  
+  // Собираем всех родителей учеников
+  const parentMap = {};
+  students.forEach(s => {
+    (s.parents || []).forEach(pUsername => {
+      if (!parentMap[pUsername]) {
+        const p = users[pUsername];
+        if (p) {
+          parentMap[pUsername] = {
+            ...p,
+            children: []
+          };
+        }
+      }
+      if (parentMap[pUsername]) {
+        parentMap[pUsername].children.push(s);
+      }
+    });
+  });
+  
+  const parents = Object.values(parentMap);
+  
+  return `
+    <div class="page-header">
+      <h1>👨‍👩‍👧 Родители</h1>
+      <button class="btn btn-primary" onclick="openAddParentModal()">➕ Добавить родителя</button>
+    </div>
+    
+    <div class="info-banner info">ℹ️ Здесь отображаются все родители учеников класса ${currentClass}</div>
+    
+    ${parents.length === 0 ? 
+      '<div class="empty-state"><div class="icon">👨‍👩‍👧</div><p>Пока нет зарегистрированных родителей</p></div>' :
+      `<div class="table-wrapper">
+        <table>
+          <thead><tr><th>Родитель</th><th>Логин</th><th>Дети</th><th>Действия</th></tr></thead>
+          <tbody>
+            ${parents.map(p => `
+              <tr>
+                <td><b>${escapeHtml(p.fullname)}</b></td>
+                <td>@${escapeHtml(p.username)}</td>
+                <td>${p.children.map(c => escapeHtml(c.fullname)).join(', ') || '—'}</td>
+                <td>
+                  <button class="btn btn-danger btn-sm" onclick="removeParent('${escapeHtml(p.username)}')">🗑️ Удалить</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`
+    }
+  `;
+}
+
+function openAddParentModal() {
+  const users = DB.getUsers();
+  
+  // Получаем учеников текущего класса
+  let students = [];
+  if (currentClass) {
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  }
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>Добавить родителя</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Логин родителя</label>
+      <input type="text" id="parentUsername" placeholder="ivanova_m">
+    </div>
+    <div class="form-group">
+      <label>Полное имя</label>
+      <input type="text" id="parentFullname" placeholder="Иванова Мария Ивановна">
+    </div>
+    <div class="form-group">
+      <label>Пароль</label>
+      <input type="password" id="parentPassword" placeholder="Минимум 6 символов">
+    </div>
+    <div class="form-group">
+      <label>Добавить к ученику</label>
+      <select id="parentStudent" multiple style="height:120px">
+        ${students.map(s => `<option value="${s.username}">${s.fullname} (${s.class})</option>`).join('')}
+      </select>
+      <small style="color:var(--text-muted);font-size:11px">Удерживайте Ctrl для выбора нескольких</small>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="addParent()">Добавить</button>
+    </div>
+  `);
+}
+
+async function addParent() {
+  const username = document.getElementById('parentUsername').value.trim();
+  const fullname = document.getElementById('parentFullname').value.trim();
+  const pass = document.getElementById('parentPassword').value;
+  const users = DB.getUsers();
+  
+  if (username.length < 3) return toast('Логин минимум 3 символа', 'error');
+  if (!fullname) return toast('Введите полное имя', 'error');
+  if (pass.length < 6) return toast('Пароль минимум 6 символов', 'error');
+  
+  // Создаём или находим родителя
+  let parent;
+  if (users[username]) {
+    if (users[username].role !== 'parent') return toast('Этот пользователь не родитель', 'error');
+    parent = users[username];
+  } else {
+    const salt = generateSalt();
+    const hash = await hashPassword(salt + pass);
+    parent = {
+      username, fullname, salt, hash,
+      role: 'parent',
+      children: [],
+      created: Date.now(),
+      settings: { theme: 'light' }
+    };
+    users[username] = parent;
+  }
+  
+  const select = document.getElementById('parentStudent');
+  const selectedStudents = Array.from(select.selectedOptions).map(o => o.value);
+  
+  if (selectedStudents.length === 0) return toast('Выберите хотя бы одного ученика', 'error');
+  
+  // Добавляем родителя к ученикам
+  selectedStudents.forEach(studentUsername => {
+    const student = users[studentUsername];
+    if (!student.parents) student.parents = [];
+    if (!student.parents.includes(username)) {
+      student.parents.push(username);
+    }
+    
+    // Добавляем ученика к родителю
+    if (!parent.children) parent.children = [];
+    if (!parent.children.includes(studentUsername)) {
+      parent.children.push(studentUsername);
+    }
+  });
+  
+  DB.saveUsers(users);
+  saveUser();
+  closeModal();
+  renderPage('teacher-parents');
+  toast(`✅ Родитель ${users[username] ? 'привязан' : 'создан и'} к ${selectedStudents.length} ученикам`);
+}
+
+async function removeParent(parentUsername) {
+  if (!confirm('Удалить родителя? Связи с учениками будут разорваны.')) return;
+  
+  const users = DB.getUsers();
+  
+  // Удаляем из всех учеников
+  Object.values(users).forEach(u => {
+    if (u.role === 'student' && u.parents) {
+      u.parents = u.parents.filter(p => p !== parentUsername);
+    }
+  });
+  
+  // Удаляем родителя
+  delete users[parentUsername];
+  DB.saveUsers(users);
+  saveUser();
+  renderPage('teacher-parents');
+  toast('🗑️ Родитель удалён');
+}
+function renderParentChildren() {
+  const users = DB.getUsers();
+  const children = currentUser.children.map(u => users[u]).filter(Boolean);
+  
+  return `
+    <div class="page-header">
+      <h1>👨‍👩‍👧 Мои дети</h1>
+      <button class="btn btn-primary" onclick="openAddChildModal()">➕ Добавить ребёнка</button>
+    </div>
+    
+    <div class="info-banner info">ℹ️ Вы видите оценки, задания и расписание своих детей. Только для просмотра.</div>
+    
+    ${children.length === 0 ? 
+      '<div class="empty-state"><div class="icon">👨‍👩‍👧</div><p>Добавьте ребёнка по его логину</p></div>' :
+      `<div class="person-list">
+        ${children.map(c => {
+          const allGrades = Object.values(c.grades || {}).flat();
+          const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
+          const activeTasks = (c.tasks || []).filter(t => !t.done).length;
+          return `
+            <div class="person-card" onclick="selectChild('${escapeHtml(c.username)}')">
+              <div class="person-avatar">${escapeHtml(c.fullname.charAt(0))}</div>
+              <div class="person-info">
+                <div class="person-name">${escapeHtml(c.fullname)}</div>
+                <div class="person-meta">${escapeHtml(c.class || '')} • Ср: ${avg} • Заданий: ${activeTasks}</div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>`
+    }
+    
+    ${currentViewStudent ? renderParentChildDetails() : ''}
+  `;
+}
+
+function renderParentChildDetails() {
+  const users = DB.getUsers();
+  const child = users[currentViewStudent];
+  if (!child) return '';
+  
+  const allGrades = Object.values(child.grades || {}).flat();
+  const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
+  const activeTasks = (child.tasks || []).filter(t => !t.done).length;
+  const recent = [...allGrades].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5);
+  
+  return `
+    <div class="table-wrapper" style="margin-top:20px">
+      <div class="table-header">
+        <h3>📋 ${escapeHtml(child.fullname)} — ${escapeHtml(child.class || '')}</h3>
+        <button class="btn btn-secondary btn-sm" onclick="currentViewStudent=null;renderPage('children')">✕ Закрыть</button>
+      </div>
+      <div style="padding:15px">
+        <div style="display:flex;gap:15px;margin-bottom:15px;flex-wrap:wrap">
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="card-value">${avg}</div>
+            <div class="card-label">Средний балл</div>
+          </div>
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="card-value">${allGrades.length}</div>
+            <div class="card-label">Всего оценок</div>
+          </div>
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="card-value">${activeTasks}</div>
+            <div class="card-label">Активных заданий</div>
+          </div>
+        </div>
+        
+        <h4 style="margin-bottom:10px;font-size:14px">Последние оценки:</h4>
+        ${recent.length === 0 ? '<p style="color:var(--text-muted);font-size:13px">Нет оценок</p>' :
+          `<table><thead><tr><th>Предмет</th><th>Оценка</th><th>Дата</th><th>Тип</th><th>Учитель</th></tr></thead><tbody>
+            ${recent.map(g => `<tr>
+              <td><b>${g.subject}</b></td>
+              <td><span class="grade grade-${g.value}">${g.value}</span></td>
+              <td>${formatDate(g.date)}</td>
+              <td>${g.type || '—'}</td>
+              <td style="color:var(--text-muted);font-size:12px">${g.teacher || '—'}</td>
+            </tr>`).join('')}
+          </tbody></table>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+function selectChild(username) {
+  currentViewStudent = username;
+  renderPage('children');
+}
+
+function openAddChildModal() {
+  openModal(`
+    <div class="modal-header">
+      <h3>Добавить ребёнка</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="info-banner info">ℹ️ Ребёнок должен быть зарегистрирован как ученик</div>
+    <div class="form-group">
+      <label>Логин ученика</label>
+      <input type="text" id="childUsername" placeholder="username">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="addChild()">Добавить</button>
+    </div>
+  `);
+}
+
+function addChild() {
+  const username = document.getElementById('childUsername').value.trim();
+  const users = DB.getUsers();
+  
+  if (!users[username]) return toast('Пользователь не найден', 'error');
+  if (users[username].role !== 'student') return toast('Это не ученик', 'error');
+  if (currentUser.children.includes(username)) return toast('Ребёнок уже добавлен', 'error');
+  
+  currentUser.children.push(username);
+  if (!users[username].parents) users[username].parents = [];
+  if (!users[username].parents.includes(currentUser.username)) users[username].parents.push(currentUser.username);
+  
+  DB.saveUsers(users);
+  saveUser();
+  
+  closeModal();
+  renderPage('children');
+  toast('✅ Ребёнок добавлен');
+}
+
+// ============ РОДИТЕЛЬ: ОЦЕНКИ ============
+function renderParentGrades() {
+  const users = DB.getUsers();
+  const children = currentUser.children.map(u => users[u]).filter(Boolean);
+  
+  if (children.length === 0) {
+    return `<div class="page-header"><h1>📊 Оценки</h1></div>
+      <div class="empty-state"><div class="icon">👨‍👩‍👧</div><p>Сначала добавьте ребёнка</p></div>`;
+  }
+  
+  return `
+    <div class="page-header"><h1>📊 Оценки детей</h1></div>
+    <div class="info-banner info">ℹ️ Только просмотр</div>
+    
+      ${children.map(c => {
+      const subjects = Object.keys(c.grades || {});
+      return `
+        <div class="table-wrapper">
+          <div class="table-header"><h3>👨‍🎓 ${escapeHtml(c.fullname)} (${escapeHtml(c.class || '')})</h3></div>
+          ${subjects.length === 0 ? '<div class="empty-state" style="padding:20px"><p>Нет оценок</p></div>' :
+            `<table><thead><tr><th>Предмет</th><th>Оценки</th><th>Средний</th></tr></thead><tbody>
+              ${subjects.map(subj => {
+                const grades = c.grades[subj];
+                const avg = (grades.reduce((s,g) => s + g.value, 0) / grades.length).toFixed(2);
+                return `<tr>
+                  <td><b>${escapeHtml(subj)}</b></td>
+                  <td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('')}</td>
+                  <td><b>${avg}</b></td>
+                </tr>`;
+              }).join('')}
+            </tbody></table>`
+          }
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+
+// ============ РОДИТЕЛЬ: ЗАДАНИЯ ============
+function renderParentTasks() {
+  const users = DB.getUsers();
+  const children = currentUser.children.map(u => users[u]).filter(Boolean);
+  
+  if (children.length === 0) {
+    return `<div class="page-header"><h1>📝 Задания</h1></div>
+      <div class="empty-state"><div class="icon">👨‍👩‍👧</div><p>Сначала добавьте ребёнка</p></div>`;
+  }
+  
+  return `
+    <div class="page-header"><h1>📝 Задания детей</h1></div>
+    <div class="info-banner info">ℹ️ Только просмотр</div>
+    
+    ${children.map(c => {
+      const tasks = (c.tasks || []).sort((a,b) => a.dueDate.localeCompare(b.dueDate));
+      return `
+        <div class="table-wrapper">
+          <div class="table-header"><h3>👨‍🎓 ${escapeHtml(c.fullname)}</h3></div>
+          ${tasks.length === 0 ? '<div class="empty-state" style="padding:20px"><p>Нет заданий</p></div>' :
+            tasks.map(t => {
+              const badge = getTaskBadge(t.dueDate);
+              return `<div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                    <div style="font-weight:600;font-size:13px">${escapeHtml(t.subject)}</div>
+                    <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(t.text)}</div>
+                  </div>
+                  <div style="text-align:right">
+                    <div style="font-size:12px">${formatDate(t.dueDate)}</div>
+                    <span class="task-badge ${t.done ? 'badge-ok' : badge.class}">${t.done ? '✓ Выполнено' : escapeHtml(badge.text)}</span>
+                  </div>
+                </div>
+              </div>`;
+            }).join('')
+          }
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+
+// ============ РОДИТЕЛЬ: РАСПИСАНИЕ ============
+function renderParentSchedule() {
+  const users = DB.getUsers();
+  const children = currentUser.children.map(u => users[u]).filter(Boolean);
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+  
+  if (children.length === 0) {
+    return `<div class="page-header"><h1>📅 Расписание</h1></div>
+      <div class="empty-state"><div class="icon">👨‍👩‍👧</div><p>Сначала добавьте ребёнка</p></div>`;
+  }
+  
+  return `
+    <div class="page-header"><h1>📅 Расписание детей</h1></div>
+    <div class="info-banner info">ℹ️ Только просмотр</div>
+    
+    ${children.map(c => `
+      <h2 style="margin:20px 0 10px;font-size:18px">👨‍🎓 ${escapeHtml(c.fullname)}</h2>
+      <div class="schedule-grid">
+        ${days.map(day => {
+          const lessons = (c.schedule && c.schedule[day]) || [];
+          return `<div class="day-card">
+            <h3>${escapeHtml(day)}</h3>
+            ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:10px 0">Нет уроков</p>' :
+              lessons.map(l => `<div class="lesson-item">
+                <div class="lesson-time">${escapeHtml(l.time)}</div>
+                <div class="lesson-name">${escapeHtml(l.name)}</div>
+                ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+              </div>`).join('')
+            }
+          </div>`;
+        }).join('')}
+      </div>
+    `).join('')}
+  `;
+}
+
+// ============ РОДИТЕЛЬ: СТАТИСТИКА ============
+function renderParentStats() {
+  const users = DB.getUsers();
+  const children = currentUser.children.map(u => users[u]).filter(Boolean);
+  
+  if (children.length === 0) {
+    return `<div class="page-header"><h1>📈 Статистика</h1></div>
+      <div class="empty-state"><div class="icon">👨‍👩‍👧</div><p>Сначала добавьте ребёнка</p></div>`;
+  }
+  
+  return `
+    <div class="page-header"><h1>📈 Статистика детей</h1></div>
+    
+    ${children.map(c => {
+      const allGrades = Object.values(c.grades || {}).flat();
+      const subjects = Object.keys(c.grades || {});
+      const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
+      
+      // Место в классе
+      const classmates = Object.values(users).filter(u => u.role === 'student' && u.class === c.class);
+      const classAvgs = classmates.map(s => {
+        const all = Object.values(s.grades || {}).flat();
+        return { name: s.fullname, avg: all.length ? all.reduce((a,g) => a + g.value, 0) / all.length : 0 };
+      }).sort((a,b) => b.avg - a.avg);
+      const rank = classAvgs.findIndex(s => s.name === c.fullname) + 1;
+      
+      const subjectStats = subjects.map(s => {
+        const g = c.grades[s];
+        return { subj: s, avg: g.reduce((a,x) => a + x.value, 0) / g.length };
+      }).sort((a,b) => b.avg - a.avg);
+      
+      return `
+        <div class="table-wrapper">
+          <div class="table-header"><h3>👨‍🎓 ${escapeHtml(c.fullname)} (${escapeHtml(c.class || '')})</h3></div>
+          <div style="padding:15px">
+            <div style="display:flex;gap:15px;margin-bottom:15px;flex-wrap:wrap">
+              <div class="card" style="flex:1;min-width:140px">
+                <div class="card-value">${avg}</div>
+                <div class="card-label">Средний балл</div>
+              </div>
+              <div class="card" style="flex:1;min-width:140px">
+                <div class="card-value">${rank || '—'}</div>
+                <div class="card-label">Место в классе (из ${classmates.length})</div>
+              </div>
+              <div class="card" style="flex:1;min-width:140px">
+                <div class="card-value">${allGrades.length}</div>
+                <div class="card-label">Всего оценок</div>
+              </div>
+            </div>
+            
+            ${subjectStats.length > 0 ? `
+              <h4 style="margin-bottom:10px;font-size:14px">По предметам:</h4>
+              <div class="bar-chart">
+                ${subjectStats.map(s => `
+                  <div class="bar-row">
+                    <div class="bar-label">${s.subj}</div>
+                    <div class="bar-track">
+                      <div class="bar-fill" style="width:${(s.avg/5*100).toFixed(1)}%">${s.avg.toFixed(2)}</div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<p style="color:var(--text-muted)">Нет оценок</p>'}
+          </div>
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+
+// ============ АДМИН: ПАНЕЛЬ УПРАВЛЕНИЯ ============
+function renderAdminDashboard() {
+  const users = DB.getUsers();
+  const all = Object.values(users);
+  const students = all.filter(u => u.role === 'student');
+  const teachers = all.filter(u => u.role === 'teacher');
+  const parents = all.filter(u => u.role === 'parent');
+  
+  const allGrades = students.flatMap(s => Object.values(s.grades || {}).flat());
+  const overallAvg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
+  
+  return `
+    <div class="page-header">
+      <h1>🏠 Панель управления</h1>
+      <div style="color:var(--text-muted);font-size:13px">${currentUser.school || 'Учебное заведение'}</div>
+    </div>
+    
+    <div class="info-banner success">
+      👑 <div><b>Вы — администратор системы.</b><br>Управление учителями, статистика и рейтинг школы доступны в меню слева.</div>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="card"><div class="card-icon blue">👨‍🎓</div><div class="card-value">${students.length}</div><div class="card-label">Учеников</div></div>
+      <div class="card"><div class="card-icon purple">👨‍🏫</div><div class="card-value">${teachers.length}</div><div class="card-label">Учителей</div></div>
+      <div class="card"><div class="card-icon pink">👨‍👩‍👧</div><div class="card-value">${parents.length}</div><div class="card-label">Родителей</div></div>
+      <div class="card"><div class="card-icon green">📊</div><div class="card-value">${overallAvg}</div><div class="card-label">Средний балл школы</div></div>
+      <div class="card"><div class="card-icon orange">⭐</div><div class="card-value">${allGrades.filter(g => g.value === 5).length}</div><div class="card-label">Пятёрок всего</div></div>
+      <div class="card"><div class="card-icon red">📝</div><div class="card-value">${students.reduce((s,x) => s + (x.tasks || []).filter(t => !t.done).length, 0)}</div><div class="card-label">Активных заданий</div></div>
+    </div>
+    
+    <div class="table-wrapper">
+      <div class="table-header"><h3>🏆 Топ-5 учеников школы</h3></div>
+      ${renderTopStudents(students, 5)}
+    </div>
+    
+    <div class="table-wrapper">
+      <div class="table-header"><h3>📚 Топ-5 предметов</h3></div>
+      ${renderTopSubjects(students, 5)}
+    </div>
+  `;
+}
+
+// ============ АДМИН: УЧИТЕЛЯ ============
+function renderAdminTeachers() {
+  const users = DB.getUsers();
+  const teachers = Object.values(users).filter(u => u.role === 'teacher');
+  
+  return `
+    <div class="page-header">
+      <h1>👨‍🏫 Учителя</h1>
+      <button class="btn btn-primary" onclick="openCreateTeacherModal()">➕ Назначить учителя</button>
+    </div>
+    
+    <div class="info-banner info">ℹ️ Только администратор может создавать и удалять учителей</div>
+    
+    ${teachers.length === 0 ? 
+      '<div class="empty-state"><div class="icon">👨‍🏫</div><p>Пока нет учителей. Назначите первого!</p></div>' :
+      `<div class="table-wrapper">
+        <table>
+          <thead><tr><th>Имя</th><th>Предметы</th><th>Учеников</th><th>Действия</th></tr></thead>
+          <tbody>
+            ${teachers.map(t => `
+              <tr>
+                <td><b>${escapeHtml(t.fullname)}</b><br><small style="color:var(--text-muted)">@${escapeHtml(t.username)}</small></td>
+                <td>${(t.subjects || []).map(escapeHtml).join(', ') || '—'}</td>
+                <td>${(t.students || []).length}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" onclick="editTeacher('${escapeHtml(t.username)}')">✏️ Изменить</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteTeacher('${escapeHtml(t.username)}')">🗑️ Удалить</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`
+    }
+  `;
+}
+
+function openCreateTeacherModal() {
+  const subjects = getAllSubjects();
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>Назначить учителя</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Логин (латиница)</label>
+      <input type="text" id="teacherUsername" placeholder="ivanov_ii">
+    </div>
+    <div class="form-group">
+      <label>Полное имя</label>
+      <input type="text" id="teacherFullname" placeholder="Иванов Иван Иванович">
+    </div>
+    <div class="form-group">
+      <label>📚 Предметы</label>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <select id="subjectSelect" style="flex:1">
+          <option value="">— Выберите предмет —</option>
+          ${subjects.map(s => `<option value="${s}">${s}</option>`).join('')}
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="addSubjectToTeacher()" title="Добавить">➕</button>
+      </div>
+      <div id="teacherSubjectsList" style="display:flex;flex-wrap:wrap;gap:4px;min-height:32px;padding:6px;background:var(--surface-2);border-radius:6px">
+        <span style="color:var(--text-muted);font-size:12px;line-height:32px" id="noSubjectsMsg">Предметы не выбраны</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>🏫 Классы, где учитель ведёт предметы</label>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <select id="teacherClassSelect" style="flex:1">
+          <option value="">— Выберите класс —</option>
+          ${generateClassOptions().map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="addClassToTeacher()" title="Добавить">➕</button>
+      </div>
+      <div id="teacherClassesList" style="display:flex;flex-wrap:wrap;gap:4px;min-height:32px;padding:6px;background:var(--surface-2);border-radius:6px">
+        <span style="color:var(--text-muted);font-size:12px;line-height:32px" id="noClassesMsg">Классы не выбраны</span>
+      </div>
+      <small style="color:var(--text-muted);font-size:11px;display:block;margin-top:4px">Учитель сможет добавлять учеников в эти классы</small>
+    </div>
+    <div class="form-group">
+      <label>➕ Добавить свой предмет</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="customSubjectInput" placeholder="Название предмета">
+        <button class="btn btn-secondary btn-sm" onclick="addCustomSubject()">Добавить</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>🏫 Классный руководитель (необязательно)</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="teacherHomeroomClass" style="width:80px">
+          <option value="">—</option>
+          ${[1,2,3,4,5,6,7,8,9,10,11].map(n => `<option value="${n}">${n}</option>`).join('')}
+        </select>
+        <select id="teacherHomeroomLetter" style="width:80px">
+          <option value="">—</option>
+          ${getAllClassLetters().map(l => `<option value="${l}">${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Пароль (мин. 8 символов)</label>
+      <input type="password" id="teacherPassword" placeholder="Минимум 8 символов">
+      <button class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="generateTeacherPassword()">🎲 Сгенерировать надёжный пароль</button>
+      <small style="color:var(--text-muted);font-size:11px;display:block;margin-top:4px">Надёжный пароль: 14 символов, заглавная, строчная, цифра, спецсимвол</small>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="createTeacher()">Создать</button>
+    </div>
+  `);
+}
+
+let _teacherSubjects = [];
+let _teacherCustomSubjects = [];
+let _teacherClasses = [];
+
+function addSubjectToTeacher() {
+  const sel = document.getElementById('subjectSelect');
+  const val = sel.value;
+  if (!val) return;
+  if (_teacherSubjects.includes(val)) {
+    toast('Этот предмет уже добавлен', 'warning');
+    return;
+  }
+  _teacherSubjects.push(val);
+  renderTeacherSubjectsList();
+  sel.value = '';
+}
+
+function addClassToTeacher() {
+  const sel = document.getElementById('teacherClassSelect');
+  const val = sel.value;
+  if (!val) return;
+  if (_teacherClasses.includes(val)) {
+    toast('Этот класс уже добавлен', 'warning');
+    return;
+  }
+  _teacherClasses.push(val);
+  renderTeacherClassesList();
+  sel.value = '';
+}
+
+function removeTeacherClass(idx) {
+  _teacherClasses.splice(idx, 1);
+  renderTeacherClassesList();
+}
+
+function renderTeacherClassesList() {
+  const container = document.getElementById('teacherClassesList');
+  if (_teacherClasses.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-muted);font-size:12px;line-height:32px" id="noClassesMsg">Классы не выбраны</span>';
+    return;
+  }
+  container.innerHTML = _teacherClasses.map((c, i) => 
+    `<span style="background:var(--success);color:white;padding:2px 8px;border-radius:12px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
+      ${c}
+      <span style="cursor:pointer;font-weight:bold" onclick="removeTeacherClass(${i})">×</span>
+    </span>`
+  ).join('');
+}
+
+function addCustomSubject() {
+  const input = document.getElementById('customSubjectInput');
+  const val = input.value.trim();
+  if (!val) return toast('Введите название предмета', 'warning');
+  if (_teacherSubjects.includes(val)) return toast('Этот предмет уже добавлен', 'warning');
+  if (DEFAULT_SUBJECTS.includes(val)) return toast('Выберите предмет из списка', 'warning');
+  _teacherSubjects.push(val);
+  _teacherCustomSubjects.push(val);
+  renderTeacherSubjectsList();
+  input.value = '';
+}
+
+function removeTeacherSubject(idx) {
+  _teacherSubjects.splice(idx, 1);
+  renderTeacherSubjectsList();
+}
+
+function renderTeacherSubjectsList() {
+  const container = document.getElementById('teacherSubjectsList');
+  const noMsg = document.getElementById('noSubjectsMsg');
+  if (_teacherSubjects.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-muted);font-size:12px;line-height:32px" id="noSubjectsMsg">Предметы не выбраны</span>';
+    return;
+  }
+  container.innerHTML = _teacherSubjects.map((s, i) => 
+    `<span style="background:var(--primary);color:white;padding:2px 8px;border-radius:12px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
+      ${s}
+      <span style="cursor:pointer;font-weight:bold" onclick="removeTeacherSubject(${i})">×</span>
+    </span>`
+  ).join('');
+}
+
+async function createTeacher() {
+  const username = document.getElementById('teacherUsername').value.trim();
+  const fullname = document.getElementById('teacherFullname').value.trim();
+  const subjects = [..._teacherSubjects];
+  const classes = [..._teacherClasses];
+  const homeroomNum = document.getElementById('teacherHomeroomClass').value;
+  const homeroomLet = document.getElementById('teacherHomeroomLetter').value;
+  const homeroomClass = (homeroomNum && homeroomLet) ? homeroomNum + homeroomLet : '';
+  const pass = document.getElementById('teacherPassword').value;
+  
+  if (username.length < 3) return toast('Логин минимум 3 символа', 'error');
+  if (!fullname) return toast('Введите имя', 'error');
+  if (subjects.length === 0) return toast('Укажите предметы', 'error');
+  if (pass.length < 8) return toast('Пароль минимум 8 символов', 'error');
+  
+  const users = DB.getUsers();
+  if (users[username]) return toast('Пользователь уже существует', 'error');
+  
+  const salt = generateSalt();
+  const hash = await hashPassword(salt + pass);
+  
+  users[username] = {
+    username, fullname, salt, hash,
+    role: 'teacher',
+    subjects,
+    customSubjects: [..._teacherCustomSubjects],
+    classes,
+    homeroomClass: homeroomClass || null,
+    isHomeroomTeacher: !!homeroomClass,
+    students: [],
+    created: Date.now(),
+    settings: { theme: 'light' }
+  };
+  
+  // Если учитель классный руководитель — добавить всех учеников этого класса
+  if (homeroomClass) {
+    Object.values(users).forEach(u => {
+      if (u.role === 'student' && u.class === homeroomClass) {
+        if (!users[username].students.includes(u.username)) {
+          users[username].students.push(u.username);
+        }
+        // Привязываем ученика к классному руководителю
+        u.homeroomTeacher = users[username].username;
+      }
+    });
+  }
+  
+  DB.saveUsers(users);
+  
+  // Сохраняем кастомные предметы глобально
+  if (_teacherCustomSubjects.length > 0) {
+    saveCustomSubjects(_teacherCustomSubjects);
+  }
+  
+  // Сброс
+  _teacherSubjects = [];
+  _teacherCustomSubjects = [];
+  _teacherClasses = [];
+  
+  closeModal();
+  renderPage('admin-teachers');
+  toast('✅ Учитель создан' + (homeroomClass ? ` (классный руководитель ${homeroomClass})` : '') + (classes.length > 0 ? `, классы: ${classes.join(', ')}` : ''));
+}
+
+function editTeacher(username) {
+  // Инициализируем предметы из текущего состояния
+  const users = DB.getUsers();
+  const t = users[username];
+  _editTeacherSubjects = [...(t.subjects || [])];
+  _editTeacherCustomSubjects = [...(t.customSubjects || [])];
+  _editTeacherClasses = [...(t.classes || [])];
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>Редактировать учителя</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Полное имя</label>
+      <input type="text" id="editFullname" value="${escapeHtml(t.fullname)}">
+    </div>
+    <div class="form-group">
+      <label>📚 Предметы</label>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <select id="editSubjectSelect" style="flex:1">
+          <option value="">— Выберите предмет —</option>
+          ${getAllSubjects().map(s => `<option value="${s}" ${t.subjects.includes(s) ? 'disabled' : ''}>${s}</option>`).join('')}
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="addEditSubjectToTeacher()" title="Добавить">➕</button>
+      </div>
+      <div id="editTeacherSubjectsList" style="display:flex;flex-wrap:wrap;gap:4px;min-height:32px;padding:6px;background:var(--surface-2);border-radius:6px">
+        ${(t.subjects || []).map((s, i) => 
+          `<span style="background:var(--primary);color:white;padding:2px 8px;border-radius:12px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
+            ${escapeHtml(s)}
+            <span style="cursor:pointer;font-weight:bold" onclick="removeEditTeacherSubject(${i})">×</span>
+          </span>`
+        ).join('') || '<span style="color:var(--text-muted);font-size:12px;line-height:32px">Предметы не выбраны</span>'}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>➕ Добавить свой предмет</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="editCustomSubjectInput" placeholder="Название предмета">
+        <button class="btn btn-secondary btn-sm" onclick="addEditCustomSubject()">Добавить</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>🏫 Классы, где учитель ведёт предметы</label>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <select id="editTeacherClassSelect" style="flex:1">
+          <option value="">— Выберите класс —</option>
+          ${generateClassOptions().map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="addEditClassToTeacher()" title="Добавить">➕</button>
+      </div>
+      <div id="editTeacherClassesList" style="display:flex;flex-wrap:wrap;gap:4px;min-height:32px;padding:6px;background:var(--surface-2);border-radius:6px">
+        ${(t.classes || []).map((c, i) => 
+          `<span style="background:var(--success);color:white;padding:2px 8px;border-radius:12px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
+            ${escapeHtml(c)}
+            <span style="cursor:pointer;font-weight:bold" onclick="removeEditTeacherClass(${i})">×</span>
+          </span>`
+        ).join('') || '<span style="color:var(--text-muted);font-size:12px;line-height:32px">Классы не выбраны</span>'}
+      </div>
+      <small style="color:var(--text-muted);font-size:11px;display:block;margin-top:4px">Учитель сможет добавлять учеников в эти классы</small>
+    </div>
+    <div class="form-group">
+      <label>🏫 Классный руководитель</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="editTeacherHomeroomClass" style="width:80px">
+          <option value="">—</option>
+          ${[1,2,3,4,5,6,7,8,9,10,11].map(n => `<option value="${n}" ${t.homeroomClass && t.homeroomClass.startsWith(n) ? 'selected' : ''}>${n}</option>`).join('')}
+        </select>
+        <select id="editTeacherHomeroomLetter" style="width:80px">
+          <option value="">—</option>
+          ${getAllClassLetters().map(l => `<option value="${l}" ${t.homeroomClass && t.homeroomClass.endsWith(l)} selected">${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Новый пароль (оставьте пустым, чтобы не менять)</label>
+      <input type="password" id="editPassword">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveTeacher('${username}')">Сохранить</button>
+    </div>
+  `);
+}
+
+function addEditSubjectToTeacher() {
+  const sel = document.getElementById('editSubjectSelect');
+  const val = sel.value;
+  if (!val) return;
+  if (_editTeacherSubjects.includes(val)) {
+    toast('Этот предмет уже добавлен', 'warning');
+    return;
+  }
+  _editTeacherSubjects.push(val);
+  renderEditTeacherSubjectsList();
+  sel.value = '';
+}
+
+function addEditCustomSubject() {
+  const input = document.getElementById('editCustomSubjectInput');
+  const val = input.value.trim();
+  if (!val) return toast('Введите название предмета', 'warning');
+  if (_editTeacherSubjects.includes(val)) return toast('Этот предмет уже добавлен', 'warning');
+  if (DEFAULT_SUBJECTS.includes(val)) return toast('Выберите предмет из списка', 'warning');
+  _editTeacherSubjects.push(val);
+  _editTeacherCustomSubjects.push(val);
+  renderEditTeacherSubjectsList();
+  input.value = '';
+}
+
+function removeEditTeacherSubject(idx) {
+  _editTeacherSubjects.splice(idx, 1);
+  renderEditTeacherSubjectsList();
+}
+
+function renderEditTeacherSubjectsList() {
+  const container = document.getElementById('editTeacherSubjectsList');
+  if (_editTeacherSubjects.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-muted);font-size:12px;line-height:32px">Предметы не выбраны</span>';
+    return;
+  }
+  container.innerHTML = _editTeacherSubjects.map((s, i) => 
+    `<span style="background:var(--primary);color:white;padding:2px 8px;border-radius:12px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
+      ${escapeHtml(s)}
+      <span style="cursor:pointer;font-weight:bold" onclick="removeEditTeacherSubject(${i})">×</span>
+    </span>`
+  ).join('');
+}
+
+function addEditClassToTeacher() {
+  const sel = document.getElementById('editTeacherClassSelect');
+  const val = sel.value;
+  if (!val) return;
+  if (_editTeacherClasses.includes(val)) {
+    toast('Этот класс уже добавлен', 'warning');
+    return;
+  }
+  _editTeacherClasses.push(val);
+  renderEditTeacherClassesList();
+  sel.value = '';
+}
+
+function removeEditTeacherClass(idx) {
+  _editTeacherClasses.splice(idx, 1);
+  renderEditTeacherClassesList();
+}
+
+function renderEditTeacherClassesList() {
+  const container = document.getElementById('editTeacherClassesList');
+  if (_editTeacherClasses.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-muted);font-size:12px;line-height:32px">Классы не выбраны</span>';
+    return;
+  }
+  container.innerHTML = _editTeacherClasses.map((c, i) => 
+    `<span style="background:var(--success);color:white;padding:2px 8px;border-radius:12px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
+      ${escapeHtml(c)}
+      <span style="cursor:pointer;font-weight:bold" onclick="removeEditTeacherClass(${i})">×</span>
+    </span>`
+  ).join('');
+}
+
+function generateTeacherPassword() {
+  const pass = generateStrongPassword(14);
+  document.getElementById('teacherPassword').value = pass;
+  document.getElementById('teacherPassword').type = 'text';
+  toast(`✅ Надёжный пароль сгенерирован!`);
+}
+
+async function saveTeacher(username) {
+  const users = DB.getUsers();
+  const t = users[username];
+  t.fullname = document.getElementById('editFullname').value.trim();
+  t.subjects = [..._editTeacherSubjects];
+  t.classes = [..._editTeacherClasses];
+  
+  // Обновляем статус классного руководителя
+  const newHomeroomNum = document.getElementById('editTeacherHomeroomClass').value;
+  const newHomeroomLet = document.getElementById('editTeacherHomeroomLetter').value;
+  const newHomeroom = (newHomeroomNum && newHomeroomLet) ? newHomeroomNum + newHomeroomLet : '';
+  const wasHomeroom = t.isHomeroomTeacher;
+  const oldHomeroomClass = t.homeroomClass;
+  
+  t.homeroomClass = newHomeroom || null;
+  t.isHomeroomTeacher = !!newHomeroom;
+  
+  // Обновляем привязки учеников к классному руководителю
+  if (newHomeroom && !wasHomeroom) {
+    // Был обычным учителем, стал классным
+    Object.values(users).forEach(u => {
+      if (u.role === 'student' && u.class === newHomeroom) {
+        if (!t.students.includes(u.username)) {
+          t.students.push(u.username);
+        }
+        u.homeroomTeacher = username;
+      }
+    });
+  } else if (!newHomeroom && wasHomeroom) {
+    // Был классным, стал обычным — убираем привязку
+    Object.values(users).forEach(u => {
+      if (u.role === 'student' && u.class === oldHomeroomClass) {
+        if (u.homeroomTeacher === username) {
+          u.homeroomTeacher = null;
+        }
+      }
+    });
+  } else if (newHomeroom && wasHomeroom && newHomeroom !== oldHomeroomClass) {
+    // Поменял класс
+    Object.values(users).forEach(u => {
+      if (u.role === 'student') {
+        if (u.class === oldHomeroomClass && u.homeroomTeacher === username) {
+          u.homeroomTeacher = null;
+        }
+        if (u.class === newHomeroom) {
+          if (!t.students.includes(u.username)) {
+            t.students.push(u.username);
+          }
+          u.homeroomTeacher = username;
+        }
+      }
+    });
+  }
+  
+  // Обновляем кастомные предметы
+  if (_editTeacherCustomSubjects.length > 0) {
+    const existing = t.customSubjects || [];
+    const merged = [...new Set([...existing, ..._editTeacherCustomSubjects])];
+    t.customSubjects = merged;
+    saveCustomSubjects(merged);
+  }
+  
+  const newPass = document.getElementById('editPassword').value;
+  if (newPass.length >= 8) {
+    t.salt = generateSalt();
+    t.hash = await hashPassword(t.salt + newPass);
+  }
+  DB.saveUsers(users);
+  
+  // Сброс
+  _editTeacherSubjects = [];
+  _editTeacherCustomSubjects = [];
+  _editTeacherClasses = [];
+  
+  closeModal();
+  renderPage('admin-teachers');
+  toast('✅ Изменения сохранены');
+}
+
+function deleteTeacher(username) {
+  if (!confirm('Удалить учителя? Все его данные будут потеряны.')) return;
+  const users = DB.getUsers();
+  
+  // Удаляем из списков учеников
+  Object.values(users).forEach(u => {
+    if (u.role === 'teacher' && u.students) {
+      u.students = u.students.filter(s => s !== username);
+    }
+    if (u.role === 'student' && u.homeroomTeacher === username) {
+      u.homeroomTeacher = null;
+    }
+  });
+  
+  delete users[username];
+  DB.saveUsers(users);
+  renderPage('admin-teachers');
+  toast('🗑️ Учитель удалён');
+}
+
+// ============ АДМИН: УЧЕНИКИ ============
+function renderAdminStudents() {
+  const users = DB.getUsers();
+  const students = Object.values(users).filter(u => u.role === 'student');
+  
+  return `
+    <div class="page-header"><h1>👨‍🎓 Все ученики</h1></div>
+    
+    <div class="info-banner info">ℹ️ Полный список учеников системы</div>
+    
+    ${students.length === 0 ? 
+      '<div class="empty-state"><div class="icon">👨‍🎓</div><p>Пока нет учеников</p></div>' :
+      `<div class="table-wrapper">
+        <table>
+          <thead><tr><th>Имя</th><th>Класс</th><th>Средний балл</th><th>Учителей</th><th>Родителей</th><th>Действия</th></tr></thead>
+          <tbody>
+            ${students.map(s => {
+              const allGrades = Object.values(s.grades || {}).flat();
+              const avg = allGrades.length ? (allGrades.reduce((a,g) => a + g.value, 0) / allGrades.length).toFixed(2) : '—';
+              const teacherCount = Object.values(users).filter(u => u.role === 'teacher' && (u.students || []).includes(s.username)).length;
+              return `<tr>
+                <td><b>${escapeHtml(s.fullname)}</b><br><small style="color:var(--text-muted)">@${escapeHtml(s.username)}</small></td>
+                <td>${escapeHtml(s.class || '—')}</td>
+                <td><b>${avg}</b></td>
+                <td>${teacherCount}</td>
+                <td>${(s.parents || []).length}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="deleteStudent('${escapeHtml(s.username)}')">🗑️</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`
+    }
+  `;
+}
+
+function deleteStudent(username) {
+  if (!confirm('Удалить ученика? Все его данные будут потеряны.')) return;
+  const users = DB.getUsers();
+  
+  // Удаляем из списков учителей и родителей
+  Object.values(users).forEach(u => {
+    if (u.role === 'teacher' && u.students) {
+      u.students = u.students.filter(s => s !== username);
+    }
+    if (u.role === 'parent' && u.children) {
+      u.children = u.children.filter(c => c !== username);
+    }
+  });
+  
+  delete users[username];
+  DB.saveUsers(users);
+  renderPage('admin-students');
+  toast('🗑️ Ученик удалён');
+}
+
+// ============ АДМИН: СТАТИСТИКА ШКОЛЫ ============
+function renderAdminStats() {
+  const users = DB.getUsers();
+  const students = Object.values(users).filter(u => u.role === 'student');
+  const teachers = Object.values(users).filter(u => u.role === 'teacher');
+  
+  // По классам
+  const classes = {};
+  students.forEach(s => {
+    const cls = s.class || 'Без класса';
+    if (!classes[cls]) classes[cls] = [];
+    classes[cls].push(s);
+  });
+  
+  const classStats = Object.entries(classes).map(([cls, studs]) => {
+    const allGrades = studs.flatMap(s => Object.values(s.grades || {}).flat());
+    return {
+      cls,
+      count: studs.length,
+      avg: allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—'
+    };
+  }).sort((a,b) => parseFloat(b.avg) - parseFloat(a.avg));
+  
+  // По учителям
+  const teacherStats = teachers.map(t => {
+    const studs = (t.students || []).map(u => users[u]).filter(Boolean);
+    const allGrades = studs.flatMap(s => 
+      Object.entries(s.grades || {})
+        .filter(([subj]) => (t.subjects || []).includes(subj))
+        .flatMap(([_, g]) => g)
+    );
+    return {
+      name: t.fullname,
+      subjects: (t.subjects || []).join(', '),
+      students: studs.length,
+      grades: allGrades.length,
+      avg: allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—'
+    };
+  }).sort((a,b) => parseFloat(b.avg) - parseFloat(a.avg));
+  
+  // Общее распределение оценок
+  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  students.forEach(s => Object.values(s.grades || {}).flat().forEach(g => distribution[g.value]++));
+  const total = Object.values(distribution).reduce((s,v) => s+v, 0);
+  
+  return `
+    <div class="page-header"><h1>📊 Статистика школы</h1></div>
+    
+    <div class="cards-grid">
+      <div class="card"><div class="card-icon blue">🏫</div><div class="card-value">${Object.keys(classes).length}</div><div class="card-label">Классов</div></div>
+      <div class="card"><div class="card-icon purple">👨‍🏫</div><div class="card-value">${teachers.length}</div><div class="card-label">Учителей</div></div>
+      <div class="card"><div class="card-icon green">📚</div><div class="card-value">${total}</div><div class="card-label">Всего оценок</div></div>
+      <div class="card"><div class="card-icon yellow">⭐</div><div class="card-value">${distribution[5]}</div><div class="card-label">Пятёрок</div></div>
+    </div>
+    
+    <div class="stats-grid">
+      <div class="chart-card">
+        <h3>📊 Рейтинг классов</h3>
+        <div class="bar-chart">
+          ${classStats.map((c, i) => `
+            <div class="bar-row">
+              <div class="bar-label">${c.cls} (${c.count} уч.)</div>
+              <div class="bar-track">
+                <div class="bar-fill ${i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : ''}" style="width:${c.avg === '—' ? 0 : (parseFloat(c.avg)/5*100).toFixed(1)}%">${c.avg}</div>
+              </div>
+            </div>
+          `).join('') || '<p style="color:var(--text-muted)">Нет данных</p>'}
+        </div>
+      </div>
+      
+      <div class="chart-card">
+        <h3>🎯 Распределение оценок</h3>
+        <div class="bar-chart">
+          ${[5,4,3,2,1].map(n => `
+            <div class="bar-row">
+              <div class="bar-label"><span class="grade grade-${n}">${n}</span></div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${total ? (distribution[n]/total*100) : 0}%">${distribution[n]} (${total ? (distribution[n]/total*100).toFixed(0) : 0}%)</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      
+      <div class="chart-card" style="grid-column:1/-1">
+        <h3>👨‍🏫 Рейтинг учителей</h3>
+        ${teacherStats.length === 0 ? '<p style="color:var(--text-muted)">Нет учителей</p>' :
+          `<table style="width:100%">
+            <thead><tr><th>Место</th><th>Учитель</th><th>Предметы</th><th>Учеников</th><th>Оценок</th><th>Средний</th></tr></thead>
+            <tbody>
+              ${teacherStats.map((t, i) => `<tr>
+                <td><span class="rank-badge ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other'}">${i + 1}</span></td>
+                <td><b>${escapeHtml(t.name)}</b></td>
+                <td style="font-size:12px">${escapeHtml(t.subjects)}</td>
+                <td>${t.students}</td>
+                <td>${t.grades}</td>
+                <td><b>${t.avg}</b></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+// ============ АДМИН: РЕЙТИНГ ============
+function renderAdminRating() {
+  const users = DB.getUsers();
+  const students = Object.values(users).filter(u => u.role === 'student');
+  
+  if (students.length === 0) {
+    return `<div class="page-header"><h1>🏆 Рейтинг</h1></div>
+      <div class="empty-state"><div class="icon">🏆</div><p>Нет учеников</p></div>`;
+  }
+  
+  // Общий рейтинг
+  const overall = students.map(s => {
+    const allGrades = Object.values(s.grades || {}).flat();
+    return {
+      name: s.fullname,
+      class: s.class || '—',
+      avg: allGrades.length ? allGrades.reduce((a,g) => a + g.value, 0) / allGrades.length : 0,
+      count: allGrades.length,
+      fives: allGrades.filter(g => g.value === 5).length
+    };
+  }).filter(s => s.count > 0).sort((a,b) => b.avg - a.avg);
+  
+  // По классам
+  const classes = {};
+  students.forEach(s => {
+    const cls = s.class || 'Без класса';
+    if (!classes[cls]) classes[cls] = [];
+    const allGrades = Object.values(s.grades || {}).flat();
+    if (allGrades.length) {
+      classes[cls].push({
+        name: s.fullname,
+        avg: allGrades.reduce((a,g) => a + g.value, 0) / allGrades.length,
+        count: allGrades.length
+      });
+    }
+  });
+  
+  return `
+    <div class="page-header"><h1>🏆 Рейтинг</h1></div>
+    
+    <div class="table-wrapper">
+      <div class="table-header"><h3>🌟 Общий рейтинг школы</h3></div>
+      ${overall.length === 0 ? '<div class="empty-state" style="padding:20px"><p>Нет оценок</p></div>' :
+        `<table>
+          <thead><tr><th>Место</th><th>Ученик</th><th>Класс</th><th>Средний</th><th>Оценок</th><th>Пятёрок</th></tr></thead>
+          <tbody>
+            ${overall.slice(0, 20).map((s, i) => `<tr>
+              <td><span class="rank-badge ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other'}">${i + 1}</span></td>
+              <td><b>${escapeHtml(s.name)}</b></td>
+              <td>${escapeHtml(s.class)}</td>
+              <td><span class="grade grade-${Math.round(s.avg)}">${s.avg.toFixed(2)}</span></td>
+              <td>${s.count}</td>
+              <td>⭐ ${s.fives}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`
+      }
+    </div>
+    
+    <h2 style="margin:25px 0 15px;font-size:18px">📚 Рейтинг по классам</h2>
+    
+    ${Object.entries(classes).map(([cls, studs]) => {
+      studs.sort((a,b) => b.avg - a.avg);
+      return `
+        <div class="table-wrapper">
+          <div class="table-header"><h3>🏫 ${cls}</h3></div>
+          <table>
+            <thead><tr><th>Место</th><th>Ученик</th><th>Средний</th><th>Оценок</th></tr></thead>
+            <tbody>
+              ${studs.map((s, i) => `<tr>
+                <td><span class="rank-badge ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other'}">${i + 1}</span></td>
+                <td><b>${escapeHtml(s.name)}</b></td>
+                <td><span class="grade grade-${Math.round(s.avg)}">${s.avg.toFixed(2)}</span></td>
+                <td>${s.count}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+
+// ============ АДМИН: УПРАВЛЕНИЕ БУКВАМИ КЛАССОВ ============
+function renderAdminClassLetters() {
+  const customLetters = getCustomClassLetters();
+  const allLetters = getAllClassLetters();
+  const classCount = generateClassOptions().length;
+  
+  return `
+    <div class="page-header">
+      <h1>🔤 Буквы классов</h1>
+      <button class="btn btn-primary" onclick="openAddClassLetterModal()">➕ Добавить букву</button>
+    </div>
+    
+    <div class="info-banner info">
+      ℹ️ <div><b>Управление буквами для классов.</b><br>Стандартные буквы: А, Б, В, Г. Кастомные буквы можно добавлять сюда.<br>Все классы (${classCount} шт.): <b>${generateClassOptions().join(', ')}</b></div>
+    </div>
+    
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Имя</th><th>Предметы</th><th>Классы</th><th>Учеников</th><th>Действия</th></tr></thead>
+          <tbody>
+            ${teachers.map(t => `
+              <tr>
+                <td><b>${escapeHtml(t.fullname)}</b><br><small style="color:var(--text-muted)">@${escapeHtml(t.username)}</small></td>
+                <td>${(t.subjects || []).map(escapeHtml).join(', ') || '—'}</td>
+                <td>${(t.classes || []).length > 0 ? (t.classes || []).map(escapeHtml).join(', ') : '—'}</td>
+                <td>${(t.students || []).length}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" onclick="editTeacher('${escapeHtml(t.username)}')">✏️ Изменить</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteTeacher('${escapeHtml(t.username)}')">🗑️ Удалить</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    
+    <div class="info-banner warn" style="margin-top:15px">
+      ⚠️ <div><b>Внимание!</b><br>Добавление новой буквы создаёт новые классы (например, 1Д, 2Д, ... 11Д).<br>Убедитесь, что новая буква не дублирует существующие.</div>
+    </div>
+  `;
+}
+
+function openAddClassLetterModal() {
+  const customLetters = getCustomClassLetters();
+  const allLetters = getAllClassLetters();
+  
+  // Проверка на дубликаты
+  const usedLetters = allLetters.filter(l => !customLetters.includes(l));
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>Добавить букву класса</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="info-banner info">
+      ℹ️ Новая буква будет добавлена ко всем классам (1-11).<br>Например, буква "Д" создаст классы: 1Д, 2Д, ... 11Д.
+    </div>
+    <div class="form-group">
+      <label>Буква (одна буква)</label>
+      <input type="text" id="newClassLetter" maxlength="2" placeholder="Д" style="text-transform:uppercase">
+    </div>
+    <div class="form-group">
+      <label>Используемые буквы:</label>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px;background:var(--surface-2);border-radius:6px">
+        ${usedLetters.map(l => `<span style="background:var(--success);color:white;padding:2px 8px;border-radius:12px;font-size:12px">${escapeHtml(l)}</span>`).join('')}
+      </div>
+      <small style="color:var(--text-muted);font-size:11px">Зелёные - доступны для добавления</small>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="addClassLetter()">Добавить</button>
+    </div>
+  `);
+}
+
+function addClassLetter() {
+  const input = document.getElementById('newClassLetter');
+  const letter = input.value.trim().toUpperCase();
+  
+  if (!letter || letter.length !== 1) return toast('Введите одну букву', 'error');
+  
+  const customLetters = getCustomClassLetters();
+  const allLetters = getAllClassLetters();
+  
+  if (allLetters.includes(letter)) return toast('Эта буква уже используется', 'error');
+  
+  // Добавляем кастомную букву
+  customLetters.push(letter);
+  saveCustomClassLetters(customLetters);
+  
+  const newClassCount = 11; // 11 классов (1-11)
+  
+  closeModal();
+  renderPage('admin-class-letters');
+  toast(`✅ Буква "${letter}" добавлена. Создано ${newClassCount} новых классов.`);
+}
+
+function deleteCustomClassLetter(letter) {
+  if (!confirm(`Удалить кастомную букву "${letter}"? Классы с этой буквой (1${letter}, 2${letter}, ... 11${letter}) больше не будут генерироваться автоматически.`)) return;
+  
+  let customLetters = getCustomClassLetters();
+  customLetters = customLetters.filter(l => l !== letter);
+  saveCustomClassLetters(customLetters);
+  
+  renderPage('admin-class-letters');
+  toast(`🗑️ Буква "${letter}" удалена`);
+}
+
+// ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ АДМИНА ============
+function renderTopStudents(students, limit) {
+  const rated = students.map(s => {
+    const allGrades = Object.values(s.grades || {}).flat();
+    return {
+      name: s.fullname,
+      class: s.class || '—',
+      avg: allGrades.length ? allGrades.reduce((a,g) => a + g.value, 0) / allGrades.length : 0,
+      count: allGrades.length
+    };
+  }).filter(s => s.count > 0).sort((a,b) => b.avg - a.avg).slice(0, limit);
+  
+  if (rated.length === 0) return '<div class="empty-state" style="padding:20px"><p>Нет данных</p></div>';
+  
+  return `<table>
+    <thead><tr><th>Место</th><th>Ученик</th><th>Класс</th><th>Средний</th></tr></thead>
+    <tbody>
+      ${rated.map((s, i) => `<tr>
+        <td><span class="rank-badge ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other'}">${i + 1}</span></td>
+        <td><b>${escapeHtml(s.name)}</b></td>
+        <td>${escapeHtml(s.class)}</td>
+        <td><span class="grade grade-${Math.round(s.avg)}">${s.avg.toFixed(2)}</span></td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderTopSubjects(students, limit) {
+  const subjects = {};
+  students.forEach(s => {
+    Object.entries(s.grades || {}).forEach(([subj, grades]) => {
+      if (!subjects[subj]) subjects[subj] = [];
+      subjects[subj].push(...grades);
+    });
+  });
+  
+  const rated = Object.entries(subjects).map(([subj, grades]) => ({
+    subj,
+    avg: grades.reduce((s,g) => s + g.value, 0) / grades.length,
+    count: grades.length
+  })).sort((a,b) => b.avg - a.avg).slice(0, limit);
+  
+  if (rated.length === 0) return '<div class="empty-state" style="padding:20px"><p>Нет данных</p></div>';
+  
+  return `<table>
+    <thead><tr><th>Место</th><th>Предмет</th><th>Средний</th><th>Оценок</th></tr></thead>
+    <tbody>
+      ${rated.map((s, i) => `<tr>
+        <td><span class="rank-badge ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other'}">${i + 1}</span></td>
+        <td><b>${s.subj}</b></td>
+        <td><span class="grade grade-${Math.round(s.avg)}">${s.avg.toFixed(2)}</span></td>
+        <td>${s.count}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+// ============ СПРАВКА ============
+function renderHelp() {
+  const role = currentUser.role;
+  const deviceId = getDeviceId();
+  
+  let roleContent = '';
+  
+  if (role === 'student') {
+    roleContent = `
+      <h3>👨‍🎓 Возможности ученика</h3>
+      <ul>
+        <li>Просмотр своих оценок по всем предметам</li>
+        <li>Просмотр расписания уроков</li>
+        <li>Просмотр домашних заданий</li>
+        <li>Отметка заданий как выполненных</li>
+        <li>Просмотр личной статистики и места в классе</li>
+      </ul>
+      <p><b>❌ Нельзя:</b> ставить себе оценки, редактировать расписание, видеть других учеников.</p>
+    `;
+  } else if (role === 'teacher') {
+    const homeroomInfo = currentUser.isHomeroomTeacher 
+      ? `<h3>🏫 Как классный руководитель</h3>
+        <ul>
+          <li>Вы — классный руководитель класса <b>${currentUser.homeroomClass}</b></li>
+          <li>У вас есть доступ ко <b>всем предметам</b> учеников вашего класса</li>
+          <li>Вы можете ставить оценки и добавлять задания по любому предмету</li>
+          <li>Раздел "Класс" показывает полную статистику по вашему классу</li>
+        </ul>`
+      : '';
+    
+    roleContent = `
+      <h3>👨‍🏫 Возможности учителя</h3>
+      <ul>
+        <li>Просмотр списка своих учеников</li>
+        <li>Выставление оценок <b>только по своим предметам</b></li>
+        <li>Добавление домашних заданий своим ученикам</li>
+        <li>Просмотр журнала оценок</li>
+        <li>Статистика и рейтинг своих учеников</li>
+      </ul>
+      <p><b>❌ Нельзя:</b> видеть учеников других учителей, ставить оценки по чужим предметам, редактировать данные учеников.</p>
+      ${homeroomInfo}
+    `;
+  } else if (role === 'parent') {
+    roleContent = `
+      <h3>👨‍👩‍👧 Возможности родителя</h3>
+      <ul>
+        <li>Просмотр оценок своих детей</li>
+        <li>Просмотр домашних заданий детей</li>
+        <li>Просмотр расписания детей</li>
+        <li>Статистика и место ребёнка в классе</li>
+      </ul>
+      <p><b>❌ Нельзя:</b> ничего редактировать (полный режим просмотра), видеть других учеников.</p>
+    `;
+  } else if (role === 'admin') {
+    roleContent = `
+      <h3>👑 Возможности администратора</h3>
+      <ul>
+        <li>Создание и удаление учителей</li>
+        <li>Создание учеников и родителей</li>
+        <li>Просмотр всех учеников и учителей системы</li>
+        <li>Общая статистика школы</li>
+        <li>Рейтинг учеников, классов и учителей</li>
+        <li>Управление устройством (привязка админа)</li>
+      </ul>
+      <p><b>❌ Нельзя:</b> ставить оценки, добавлять задания (это делают учителя).</p>
+      <p style="margin-top:8px"><b>ℹ️ Регистрация учеников и родителей через сайт закрыта.</b> Все аккаунты создаются учителями или администратором.</p>
+      
+      <h3 style="margin-top:20px">🔒 Привязка к устройству</h3>
+      <p>Администратор привязан к конкретному устройству. Это защищает систему от несанкционированного доступа.</p>
+      <p><b>DeviceID этого устройства:</b></p>
+      <div class="device-info">${deviceId}</div>
+      <p style="margin-top:10px">Если нужно войти с другого устройства — сбросьте привязку в настройках.</p>
+    `;
+  }
+  
+  return `
+    <div class="page-header"><h1>❓ Справка</h1></div>
+    
+    <div class="help-section">
+      <h3>📚 О системе</h3>
+      <p><b>Электронный дневник</b> — это система для учёта успеваемости учеников. Она поддерживает 4 роли с разными уровнями доступа.</p>
+    </div>
+    
+    <div class="help-section">
+      ${roleContent}
+    </div>
+    
+    <div class="help-section">
+      <h3>🔐 Безопасность</h3>
+      <ul>
+        <li>Пароли хранятся в виде <b>SHA-256 хешей</b> с индивидуальной солью</li>
+        <li>Данные хранятся <b>локально</b> в вашем браузере (localStorage)</li>
+        <li>Администратор привязан к устройству через уникальный DeviceID</li>
+        <li>Каждая роль имеет строго ограниченные права доступа</li>
+      </ul>
+    </div>
+    
+    <div class="help-section">
+      <h3>🔄 Как связать пользователей</h3>
+      <ol>
+        <li><b>Ученики и родители</b> — создаются учителями через кнопки "Добавить ученика" или "Добавить родителя"</li>
+        <li><b>Импорт учеников</b> — учитель может загрузить список из .txt файла (каждая строка: "Имя Фамилия Отчество")</li>
+        <li><b>Учителя</b> — создаются администратором</li>
+        <li>Регистрация через сайт <b>закрыта</b> — все аккаунты создаются администратором или учителями</li>
+      </ol>
+    </div>
+  `;
+}
+
+// ============ НАСТРОЙКИ ============
+function renderSettings() {
+  const isAdmin = currentUser.role === 'admin';
+  const deviceId = getDeviceId();
+  
+  // Родители (для ученика)
+  let parentsSection = '';
+  if (currentUser.role === 'student') {
+    const users = DB.getUsers();
+    const parentsList = (currentUser.parents || []).map(p => users[p]).filter(Boolean);
+    parentsSection = `
+    <div class="settings-section">
+      <h3>👨‍👩‍👧 Мои родители</h3>
+      ${parentsList.length > 0 ? parentsList.map(p => `
+        <div class="setting-row">
+          <div>
+            <div style="font-weight:600">${escapeHtml(p.fullname)}</div>
+            <div style="font-size:12px;color:var(--text-muted)">@${escapeHtml(p.username)}</div>
+          </div>
+        </div>
+      `).join('') : '<p style="padding:10px 0;font-size:13px;color:var(--text-muted)">Родители не добавлены. Обратитесь к учителю.</p>'}
+    </div>`;
+  }
+  
+  return `
+    <div class="page-header"><h1>⚙️ Настройки</h1></div>
+    
+    ${parentsSection}
+    
+    <div class="settings-section">
+      <h3>🎨 Внешний вид</h3>
+      <div class="setting-row">
+        <div>
+          <div style="font-weight:600">Тёмная тема</div>
+          <div style="font-size:12px;color:var(--text-muted)">Комфорт для глаз</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="themeToggle" ${currentUser.settings.theme==='dark'?'checked':''} onchange="toggleTheme()">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+    
+    <div class="settings-section">
+      <h3>🔒 Безопасность</h3>
+      <div class="setting-row">
+        <div>
+          <div style="font-weight:600">Сменить пароль</div>
+          <div style="font-size:12px;color:var(--text-muted)">Обновите свой пароль</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="openPasswordModal()">Изменить</button>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div style="font-weight:600">Ваша роль</div>
+          <div style="font-size:12px;color:var(--text-muted)">${roleLabel(currentUser.role)}</div>
+        </div>
+        <span class="role-badge ${currentUser.role}" style="font-size:12px;padding:4px 10px">${roleLabel(currentUser.role)}</span>
+      </div>
+      
+      ${isAdmin ? `
+        <div class="setting-row">
+          <div>
+            <div style="font-weight:600">🔐 Привязка к устройству</div>
+            <div style="font-size:12px;color:var(--text-muted)">DeviceID: <code>${deviceId.substring(0, 20)}...</code></div>
+          </div>
+          <button class="btn btn-warning btn-sm" onclick="resetDeviceBinding()">🔄 Сбросить</button>
+        </div>
+      ` : ''}
+    </div>
+    
+    <div class="settings-section">
+      <h3>💾 Данные</h3>
+      <div class="setting-row">
+        <div>
+          <div style="font-weight:600">Экспорт данных</div>
+          <div style="font-size:12px;color:var(--text-muted)">Скачать всё в JSON</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="exportData()">📥 Скачать</button>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div style="font-weight:600">Импорт данных</div>
+          <div style="font-size:12px;color:var(--text-muted)">Загрузить из файла</div>
+        </div>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('importFile').click()">📤 Загрузить</button>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div style="font-weight:600;color:var(--danger)">Удалить аккаунт</div>
+          <div style="font-size:12px;color:var(--text-muted)">Все данные будут удалены</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteAccount()">🗑️ Удалить</button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleTheme() {
+  const isDark = document.getElementById('themeToggle').checked;
+  currentUser.settings.theme = isDark ? 'dark' : 'light';
+  if (isDark) document.documentElement.setAttribute('data-theme', 'dark');
+  else document.documentElement.removeAttribute('data-theme');
+  saveUser();
+}
+
+function resetDeviceBinding() {
+  if (!confirm('Сбросить привязку админа к устройству? Вы сможете войти с нового устройства, но текущий сеанс будет завершён.')) return;
+  if (!confirm('ТОЧНО сбросить? Это действие необратимо.')) return;
+  
+  const users = DB.getUsers();
+  users[currentUser.username].adminDeviceId = getDeviceId();
+  DB.saveUsers(users);
+  toast('✅ Привязка обновлена на текущее устройство');
+}
+
+function openPasswordModal() {
+  openModal(`
+    <div class="modal-header">
+      <h3>Смена пароля</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group"><label>Текущий пароль</label><input type="password" id="oldPass"></div>
+    <div class="form-group"><label>Новый пароль (мин. 6 символов)</label><input type="password" id="newPass"></div>
+    <div class="form-group"><label>Повторите новый пароль</label><input type="password" id="newPass2"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="changePassword()">Сменить</button>
+    </div>
+  `);
+}
+
+async function changePassword() {
+  const oldPass = document.getElementById('oldPass').value;
+  const newPass = document.getElementById('newPass').value;
+  const newPass2 = document.getElementById('newPass2').value;
+  
+  const oldHash = await hashPassword(currentUser.salt + oldPass);
+  if (oldHash !== currentUser.hash) return toast('Неверный текущий пароль', 'error');
+  if (newPass.length < 6) return toast('Минимум 6 символов', 'error');
+  if (newPass !== newPass2) return toast('Пароли не совпадают', 'error');
+  
+  currentUser.salt = generateSalt();
+  currentUser.hash = await hashPassword(currentUser.salt + newPass);
+  saveUser();
+  closeModal();
+  toast('✅ Пароль изменён');
+}
+
+function exportData() {
+  const data = { ...currentUser };
+  delete data.salt; delete data.hash;
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `diary_${currentUser.username}_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 Данные экспортированы');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!confirm('Импортировать данные? Текущие будут заменены.')) return;
+      if (data.grades) currentUser.grades = data.grades;
+      if (data.tasks) currentUser.tasks = data.tasks;
+      if (data.schedule) currentUser.schedule = data.schedule;
+      saveUser();
+      renderPage(currentPage);
+      toast('✅ Данные импортированы');
+    } catch (err) {
+      toast('❌ Ошибка: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function deleteAccount() {
+  if (!confirm('Удалить аккаунт? Все данные будут потеряны!')) return;
+  if (!confirm('ТОЧНО удалить "' + currentUser.username + '"?')) return;
+  const users = DB.getUsers();
+  delete users[currentUser.username];
+  DB.saveUsers(users);
+  logout();
+  toast('🗑️ Аккаунт удалён');
+}
+
+// ============ МОДАЛЬНЫЕ ОКНА ДЛЯ УЧИТЕЛЯ ============
+function openGradeModalForStudent(studentUsername) {
+  const targetStudent = studentUsername || currentViewStudent;
+  const users = DB.getUsers();
+  
+  // Получаем учеников текущего класса
+  let studentsList = [];
+  if (currentClass) {
+    studentsList = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  }
+  
+  const today = new Date().toISOString().split('T')[0];
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  
+  // Для классного руководителя — все предметы учеников класса
+  let allSubjects = [...new Set(currentUser.subjects)];
+  if (isHomeroom) {
+    studentsList.forEach(s => {
+      Object.keys(s.grades || {}).forEach(subj => {
+        if (!allSubjects.includes(subj)) allSubjects.push(subj);
+      });
+    });
+  }
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>Поставить оценку</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Ученик</label>
+      <select id="gradeStudent">
+        ${studentsList.map(s => `<option value="${s.username}" ${s.username===targetStudent?'selected':''}>${s.fullname} (${s.class || ''})</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Предмет</label>
+      <select id="gradeSubject">
+        <option value="">— Выберите предмет —</option>
+        ${allSubjects.map(s => `<option value="${s}">${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Оценка</label>
+      <select id="gradeValue">
+        <option value="5">5 (Отлично)</option>
+        <option value="4">4 (Хорошо)</option>
+        <option value="3">3 (Удовл.)</option>
+        <option value="2">2 (Неудовл.)</option>
+        <option value="1">1</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Тип работы</label>
+      <select id="gradeType">
+        <option>Ответ на уроке</option>
+        <option>Контрольная</option>
+        <option>Самостоятельная</option>
+        <option>Домашняя работа</option>
+        <option>Тест</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Дата</label>
+      <input type="date" id="gradeDate" value="${today}">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveTeacherGrade()">Поставить</button>
+    </div>
+  `);
+}
+
+function saveTeacherGrade() {
+  const studentUsername = document.getElementById('gradeStudent').value;
+  const subject = document.getElementById('gradeSubject').value;
+  const value = parseInt(document.getElementById('gradeValue').value);
+  const type = document.getElementById('gradeType').value;
+  const date = document.getElementById('gradeDate').value;
+  
+  if (!subject) return toast('Выберите предмет', 'error');
+  
+  // Проверяем, что ученик из текущего класса
+  if (!currentClass) return toast('Выберите класс', 'error');
+  
+  const users = DB.getUsers();
+  const student = users[studentUsername];
+  if (!student || student.class !== currentClass) {
+    return toast('Нет доступа к этому ученику', 'error');
+  }
+  
+  if (value < 1 || value > 5) return toast('Оценка должна быть от 1 до 5', 'error');
+  
+  // Проверка: обычный учитель может ставить только по своим предметам
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  if (!isHomeroom && !currentUser.subjects.includes(subject)) {
+    return toast('Это не ваш предмет. Вы можете ставить оценки только по: ' + currentUser.subjects.join(', '), 'error');
+  }
+  
+  // Проверка: дата не в будущем
+  const today = new Date(); today.setHours(0,0,0,0);
+  const gradeDate = new Date(date); gradeDate.setHours(0,0,0,0);
+  if (gradeDate > today) return toast('Нельзя ставить оценку на будущую дату', 'error');
+  
+  if (!student.grades) student.grades = {};
+  if (!student.grades[subject]) student.grades[subject] = [];
+  
+  student.grades[subject].push({
+    value, type, date,
+    teacher: currentUser.fullname,
+    teacherUsername: currentUser.username
+  });
+  
+  DB.saveUsers(users);
+  closeModal();
+  renderPage(currentPage);
+  toast('✅ Оценка поставлена');
+}
+
+function openTaskModalForStudent(studentUsername) {
+  const targetStudent = studentUsername || currentViewStudent;
+  const users = DB.getUsers();
+  
+  // Получаем учеников текущего класса
+  let studentsList = [];
+  if (currentClass) {
+    studentsList = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  }
+  
+  const today = new Date().toISOString().split('T')[0];
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  
+  // Для классного руководителя — все предметы учеников класса
+  let allSubjects = [...new Set(currentUser.subjects)];
+  studentsList.forEach(s => {
+    Object.keys(s.grades || {}).forEach(subj => {
+      if (!allSubjects.includes(subj)) allSubjects.push(subj);
+    });
+  });
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>Добавить задание для класса ${currentClass || '—'}</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Для кого</label>
+      <select id="taskStudent">
+        <option value="all">Всем ученикам класса ${currentClass || '—'}</option>
+        ${studentsList.map(s => `<option value="${s.username}" ${s.username===targetStudent?'selected':''}>${s.fullname}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Предмет</label>
+      <select id="taskSubject">
+        <option value="">— Выберите предмет —</option>
+        ${allSubjects.map(s => `<option value="${s}">${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Задание</label>
+      <textarea id="taskText" rows="3" placeholder="§ 15, упр. 123-127"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Срок выполнения</label>
+      <input type="date" id="taskDate" value="${today}">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveTeacherTask()">Добавить</button>
+    </div>
+  `);
+}
+
+function saveTeacherTask() {
+  const forWho = document.getElementById('taskStudent').value;
+  const subject = document.getElementById('taskSubject').value;
+  const text = document.getElementById('taskText').value.trim();
+  const dueDate = document.getElementById('taskDate').value;
+  
+  if (!text) return toast('Введите задание', 'error');
+  if (!subject) return toast('Выберите предмет', 'error');
+  if (!dueDate) return toast('Укажите срок', 'error');
+  
+  // Проверяем currentClass
+  if (!currentClass) return toast('❌ Не выбран класс', 'error');
+  
+  // Проверка: обычный учитель может добавлять задания только по своим предметам
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  if (!isHomeroom && !currentUser.subjects.includes(subject)) {
+    return toast('Это не ваш предмет. Вы можете добавлять задания только по: ' + currentUser.subjects.join(', '), 'error');
+  }
+  
+  // Проверка: срок не в прошлом
+  const today = new Date(); today.setHours(0,0,0,0);
+  const taskDue = new Date(dueDate); taskDue.setHours(0,0,0,0);
+  if (taskDue < today) return toast('Срок выполнения не может быть в прошлом', 'error');
+  
+  const users = DB.getUsers();
+  
+  // Получаем учеников текущего класса
+  let targets = Object.values(users)
+    .filter(u => u.role === 'student' && u.class === currentClass)
+    .map(u => u.username);
+  
+  // Если выбран конкретный ученик
+  if (forWho !== 'all') {
+    targets = [forWho];
+  }
+  
+  if (targets.length === 0) {
+    return toast('❌ В классе ' + currentClass + ' нет учеников', 'error');
+  }
+  
+  let addedCount = 0;
+  targets.forEach(username => {
+    const student = users[username];
+    if (!student) return;
+    if (!student.tasks) student.tasks = [];
+    student.tasks.push({
+      subject, text, dueDate, done: false,
+      teacher: currentUser.fullname,
+      teacherUsername: currentUser.username,
+      created: Date.now()
+    });
+    addedCount++;
+  });
+  
+  DB.saveUsers(users);
+  closeModal();
+  renderPage(currentPage);
+  toast(`✅ Задание добавлено ${addedCount} ученикам класса ${currentClass}`);
+}
+
+// ============ ОБЩЕЕ ============
+function saveUser() {
+  const users = DB.getUsers();
+  const u = users[currentUser.username];
+  if (!u) return;
+  
+  const keep = ['fullname', 'salt', 'hash', 'role', 'created', 'settings'];
+  if (currentUser.role === 'student') {
+    u.class = currentUser.class;
+    u.grades = currentUser.grades;
+    u.tasks = currentUser.tasks;
+    u.schedule = currentUser.schedule;
+    u.parents = currentUser.parents;
+    u.homeroomTeacher = currentUser.homeroomTeacher;
+    // Сохраняем tempPassword из settings
+    if (currentUser.settings && currentUser.settings.tempPassword) {
+      if (!u.settings) u.settings = {};
+      u.settings.tempPassword = currentUser.settings.tempPassword;
+    }
+  } else if (currentUser.role === 'teacher') {
+    u.subjects = currentUser.subjects;
+    u.customSubjects = currentUser.customSubjects || [];
+    u.students = currentUser.students;
+    u.homeroomClass = currentUser.homeroomClass || null;
+    u.isHomeroomTeacher = currentUser.isHomeroomTeacher || false;
+  } else if (currentUser.role === 'parent') {
+    u.children = currentUser.children;
+  } else if (currentUser.role === 'admin') {
+    u.school = currentUser.school;
+    u.adminDeviceId = currentUser.adminDeviceId;
+  }
+  keep.forEach(k => u[k] = currentUser[k]);
+  DB.saveUsers(users);
+}
+
+function openModal(html) {
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target.id === 'modalOverlay') closeModal();
+});
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+
+function getTaskBadge(dueDate) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDate); due.setHours(0,0,0,0);
+  const diff = Math.ceil((due - today) / (1000*60*60*24));
+  if (diff < 0) return { class: 'badge-urgent', text: 'Просрочено' };
+  if (diff === 0) return { class: 'badge-urgent', text: 'Сегодня' };
+  if (diff <= 2) return { class: 'badge-soon', text: 'Скоро' };
+  return { class: 'badge-ok', text: `Через ${diff} дн.` };
+}
+
+function toast(msg, type = 'success') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ============ ИНИЦИАЛИЗАЦИЯ ============
+async function askResetPassword() {
+  const pass = prompt('⚠️ ВНИМАНИЕ! Это действие удалит ВСЕ данные системы.\n\nВведите пароль администратора для подтверждения:');
+  if (!pass) return;
+  
+  // Ищем админа в localStorage
+  const users = DB.getUsers();
+  const admin = Object.values(users).find(u => u.role === 'admin');
+  
+  if (!admin) {
+    return alert('Администратор не найден');
+  }
+  
+  const hash = await hashPassword(admin.salt + pass);
+  if (hash !== admin.hash) {
+    return alert('❌ Неверный пароль администратора');
+  }
+  
+  if (!confirm('Вы уверены? Все пользователи, оценки, задания будут УДАЛЕНЫ безвозвратно!')) return;
+  if (!confirm('ПОСЛЕДНИЙ РАЗ: продолжить удаление?')) return;
+  
+  localStorage.clear();
+  toast('✅ Данные удалены. Перезагрузите страницу.');
+  setTimeout(() => location.reload(), 1000);
+}
+
+function initAuthScreen() {
+  const users = DB.getUsers();
+  const hasAdmin = Object.values(users).some(u => u.role === 'admin');
+  
+  if (!hasAdmin) {
+    showFirstRun();
+  } else {
+    showLogin();
+  }
+}
+
+// Запуск при загрузке страницы
+(function() {
+  document.getElementById('authScreen').style.display = 'flex';
+  initAuthScreen();
+  
+  const saved = DB.getCurrent();
+  if (saved) {
+    const users = DB.getUsers();
+    if (users[saved]) {
+      const user = users[saved];
+      // Проверка привязки админа
+      if (user.role === 'admin') {
+        const currentDeviceId = getDeviceId();
+        if (user.adminDeviceId && user.adminDeviceId !== currentDeviceId) {
+          DB.clearCurrent();
+          return;
+        }
+      }
+      currentUser = { username: saved, ...user };
+      startSession();
+    }
+  }
+  
+  const loginPassEl = document.getElementById('loginPassword');
+  if (loginPassEl) {
+    loginPassEl.addEventListener('keypress', e => {
+      if (e.key === 'Enter') login();
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
