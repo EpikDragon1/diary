@@ -517,6 +517,12 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+// ============ ФИЛЬТР ОЦЕНОК (убирает единицы) ============
+function filterGrades(grades) {
+  if (!grades) return [];
+  return grades.filter(g => g.value !== 1);
+}
+
 // ============ ГЕНЕРАТОР НАДЁЖНЫХ ПАРОЛЕЙ ============
 function generateStrongPassword(length = 12) {
   const upperCase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -941,7 +947,7 @@ function renderPage(pageId) {
 
 // ============ УЧЕНИК: ГЛАВНАЯ ============
 function renderStudentDashboard() {
-  const allGrades = Object.values(currentUser.grades).flat();
+  const allGrades = filterGrades(Object.values(currentUser.grades).flat());
   const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
   const fives = allGrades.filter(g => g.value === 5).length;
   const activeTasks = currentUser.tasks.filter(t => !t.done).length;
@@ -1044,13 +1050,13 @@ function renderStudentGrades() {
       ${subjects.length === 0 ? '<div class="empty-state" style="padding:30px"><div class="icon">📊</div><p>Пока нет оценок</p></div>' :
         `<table><thead><tr><th>Предмет</th><th>Оценки</th><th>Средний</th></tr></thead><tbody>
           ${subjects.map(subj => {
-            const grades = currentUser.grades[subj];
-            const avg = (grades.reduce((s,g) => s + g.value, 0) / grades.length).toFixed(2);
+            const grades = filterGrades(currentUser.grades[subj]);
+            const avg = grades.length ? (grades.reduce((s,g) => s + g.value, 0) / grades.length).toFixed(2) : '—';
             return `<tr>
               <td><b>${escapeHtml(subj)}</b></td>
               <td>${grades.sort((a,b) => b.date.localeCompare(a.date)).map(g => 
                 `<span class="grade grade-${g.value}" title="${formatDate(g.date)} — ${escapeHtml(g.type || '')}">${g.value}</span>`
-              ).join('')}</td>
+              ).join('') || '<span style="color:var(--text-muted)">—</span>'}</td>
               <td><b>${avg}</b></td>
             </tr>`;
           }).join('')}
@@ -1087,6 +1093,7 @@ function renderStudentTasks() {
             <div class="task-meta">
               <span>📅 До ${formatDate(t.dueDate)}</span>
               ${t.teacher ? `<span>👨‍🏫 ${escapeHtml(t.teacher)}</span>` : ''}
+              ${t.teacherUsername === currentUser.username ? `<button class="btn btn-sm btn-secondary" onclick="editTask(${idx})" style="margin-left:5px;font-size:11px">✏️</button>` : ''}
             </div>
           </div>
         </div>`;
@@ -1101,6 +1108,58 @@ function toggleStudentTask(idx) {
   renderPage('tasks');
 }
 
+function editTask(idx) {
+  const task = currentUser.tasks[idx];
+  openModal(`
+    <div class="modal-header">
+      <h3>✏️ Редактировать задание</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Предмет</label>
+      <input type="text" id="editTaskSubject" value="${escapeHtml(task.subject)}" readonly>
+    </div>
+    <div class="form-group">
+      <label>Задание</label>
+      <textarea id="editTaskText" rows="3">${escapeHtml(task.text)}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Срок выполнения</label>
+      <input type="date" id="editTaskDate" value="${task.dueDate}">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" onclick="deleteTask(${idx})">🗑️ Удалить</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveEditTask(${idx})">Сохранить</button>
+    </div>
+  `);
+}
+
+function saveEditTask(idx) {
+  const text = document.getElementById('editTaskText').value.trim();
+  const dueDate = document.getElementById('editTaskDate').value;
+  
+  if (!text) return toast('Введите задание', 'error');
+  if (!dueDate) return toast('Укажите срок', 'error');
+  
+  currentUser.tasks[idx].text = text;
+  currentUser.tasks[idx].dueDate = dueDate;
+  
+  saveUser();
+  closeModal();
+  renderPage('tasks');
+  toast('✅ Задание обновлено');
+}
+
+function deleteTask(idx) {
+  if (!confirm('Удалить задание?')) return;
+  currentUser.tasks.splice(idx, 1);
+  saveUser();
+  closeModal();
+  renderPage('tasks');
+  toast('🗑️ Задание удалено');
+}
+
 // ============ УЧЕНИК: СТАТИСТИКА ============
 function renderStudentStats() {
   const subjects = Object.keys(currentUser.grades);
@@ -1110,20 +1169,21 @@ function renderStudentStats() {
   }
   
   const stats = subjects.map(s => {
-    const g = currentUser.grades[s];
-    return { subj: s, avg: g.reduce((a,x) => a + x.value, 0) / g.length, count: g.length };
+    const g = filterGrades(currentUser.grades[s]);
+    return { subj: s, avg: g.length ? g.reduce((a,x) => a + x.value, 0) / g.length : 0, count: g.length };
   }).sort((a,b) => b.avg - a.avg);
   
-  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-  Object.values(currentUser.grades).flat().forEach(g => distribution[g.value]++);
+  const allFiltered = filterGrades(Object.values(currentUser.grades).flat());
+  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0 };
+  allFiltered.forEach(g => distribution[g.value]++);
   const total = Object.values(distribution).reduce((s,v) => s+v, 0);
-  const overallAvg = (Object.values(currentUser.grades).flat().reduce((s,g) => s + g.value, 0) / total).toFixed(2);
+  const overallAvg = total ? (allFiltered.reduce((s,g) => s + g.value, 0) / total).toFixed(2) : '—';
   
   // Место в классе
   const users = DB.getUsers();
   const classmates = Object.values(users).filter(u => u.role === 'student' && u.class === currentUser.class);
   const classAvgs = classmates.map(c => {
-    const all = Object.values(c.grades || {}).flat();
+    const all = filterGrades(Object.values(c.grades || {}).flat());
     return { name: c.fullname, avg: all.length ? all.reduce((s,g) => s + g.value, 0) / all.length : 0 };
   }).sort((a,b) => b.avg - a.avg);
   const myRank = classAvgs.findIndex(c => c.name === currentUser.fullname) + 1;
@@ -1220,8 +1280,8 @@ function renderTeacherStudents() {
     `<div class="person-list">
       ${students.map(s => {
         const allGrades = isHomeroom 
-          ? Object.values(s.grades || {}).flat()
-          : Object.entries(s.grades || {}).flatMap(([subj, grades]) => currentUser.subjects.includes(subj) ? grades : []);
+          ? filterGrades(Object.values(s.grades || {}).flat())
+          : filterGrades(Object.entries(s.grades || {}).flatMap(([subj, grades]) => currentUser.subjects.includes(subj) ? grades : []));
         const avg = allGrades.length ? (allGrades.reduce((a,g) => a + g.value, 0) / allGrades.length).toFixed(2) : '—';
         const tempPass = s.settings && s.settings.tempPassword ? escapeHtml(s.settings.tempPassword) : '—';
         return `
@@ -1258,7 +1318,7 @@ function renderTeacherStudentDetails() {
     if (student.grades && student.grades[s]) myGrades[s] = student.grades[s];
   });
   
-  const allGrades = Object.values(myGrades).flat();
+  const allGrades = filterGrades(Object.values(myGrades).flat());
   const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
   
   const accessLabel = isHomeroom ? 'все предметы' : currentUser.subjects.join(', ');
@@ -1297,10 +1357,11 @@ function renderTeacherStudentDetails() {
         ${Object.keys(myGrades).length === 0 ? '<p style="color:var(--text-muted);font-size:13px">Нет оценок</p>' :
           `<table><thead><tr><th>Предмет</th><th>Оценки</th><th>Средний</th></tr></thead><tbody>
             ${Object.entries(myGrades).map(([subj, grades]) => {
-              const a = (grades.reduce((s,g) => s + g.value, 0) / grades.length).toFixed(2);
+              const filtered = filterGrades(grades);
+              const a = filtered.length ? (filtered.reduce((s,g) => s + g.value, 0) / filtered.length).toFixed(2) : '—';
               return `<tr>
                 <td><b>${escapeHtml(subj)}</b></td>
-                <td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('')}</td>
+                <td>${filtered.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>'}</td>
                 <td><b>${a}</b></td>
               </tr>`;
             }).join('')}
@@ -1342,14 +1403,14 @@ function renderHomeroomClass() {
   const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls);
   
   // Считаем статистику по классу
-  const allGrades = classStudents.flatMap(s => Object.values(s.grades || {}).flat());
+  const allGrades = filterGrades(classStudents.flatMap(s => Object.values(s.grades || {}).flat()));
   const classAvg = allGrades.length ? (allGrades.reduce((s, g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
   const fives = allGrades.filter(g => g.value === 5).length;
   const activeTasks = classStudents.reduce((s, x) => s + (x.tasks || []).filter(t => !t.done).length, 0);
   
   // Рейтинг учеников
   const ratings = classStudents.map(s => {
-    const grades = Object.values(s.grades || {}).flat();
+    const grades = filterGrades(Object.values(s.grades || {}).flat());
     return {
       name: s.fullname,
       avg: grades.length ? (grades.reduce((a, g) => a + g.value, 0) / grades.length).toFixed(2) : '—',
@@ -1399,7 +1460,7 @@ function renderHomeroomClass() {
       ${classStudents.length === 0 ? '<div class="empty-state" style="padding:20px"><p>В классе пока нет учеников</p></div>' :
         `<div class="person-list">
           ${classStudents.map(s => {
-            const grades = Object.values(s.grades || {}).flat();
+            const grades = filterGrades(Object.values(s.grades || {}).flat());
             const avg = grades.length ? (grades.reduce((a, g) => a + g.value, 0) / grades.length).toFixed(2) : '—';
             const tasks = (s.tasks || []).filter(t => !t.done).length;
             return `
@@ -1834,7 +1895,7 @@ function renderTeacherGrades() {
           ${students.map(s => {
             let total = 0, count = 0;
             const cells = displaySubjects.map(subj => {
-              const grades = (s.grades && s.grades[subj]) || [];
+              const grades = filterGrades(s.grades && s.grades[subj] || []);
               const avg = grades.length ? (grades.reduce((a,g) => a + g.value, 0) / grades.length).toFixed(1) : '—';
               if (grades.length) { total += grades.reduce((a,g) => a + g.value, 0); count += grades.length; }
               return `<td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>'} <small style="color:var(--text-muted)">${avg}</small></td>`;
@@ -1852,6 +1913,8 @@ function renderTeacherGrades() {
   `;
 }
 
+let allTasks = [];
+
 // ============ УЧИТЕЛЬ: ЗАДАНИЯ ============
 function renderTeacherTasks() {
   const users = DB.getUsers();
@@ -1864,16 +1927,16 @@ function renderTeacherTasks() {
   
   const isHomeroom = currentUser.isHomeroomTeacher;
   
-  const allTasks = [];
+  allTasks = [];
   students.forEach(s => {
-    (s.tasks || []).forEach(t => {
+    (s.tasks || []).forEach((t, taskIdx) => {
       if (isHomeroom) {
         // Классный руководитель видит все задания учеников класса
-        allTasks.push({ ...t, studentName: s.fullname, studentUsername: s.username });
+        allTasks.push({ ...t, studentName: s.fullname, studentUsername: s.username, taskIdx, studentIdx: students.indexOf(s) });
       } else {
         // Обычный учитель — только по своим предметам
         if (currentUser.subjects.includes(t.subject) || t.teacherUsername === currentUser.username) {
-          allTasks.push({ ...t, studentName: s.fullname, studentUsername: s.username });
+          allTasks.push({ ...t, studentName: s.fullname, studentUsername: s.username, taskIdx, studentIdx: students.indexOf(s) });
         }
       }
     });
@@ -1898,14 +1961,16 @@ function renderTeacherTasks() {
         <table>
           <thead><tr><th>Ученик</th><th>Предмет</th><th>Задание</th><th>Срок</th><th>Статус</th></tr></thead>
           <tbody>
-            ${allTasks.map(t => {
+            ${allTasks.map((t, i) => {
               const badge = getTaskBadge(t.dueDate);
+              const isOwner = t.teacherUsername === currentUser.username;
               return `<tr>
                 <td><b>${escapeHtml(t.studentName)}</b></td>
                 <td>${escapeHtml(t.subject)}</td>
                 <td style="max-width:300px">${escapeHtml(t.text)}</td>
                 <td>${formatDate(t.dueDate)}</td>
                 <td><span class="task-badge ${t.done ? 'badge-ok' : badge.class}">${t.done ? '✓ Выполнено' : escapeHtml(badge.text)}</span></td>
+                <td>${isOwner ? `<button class="btn btn-sm btn-secondary" onclick="editTeacherTask(${i})" style="font-size:11px">✏️</button>` : ''}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -1944,10 +2009,7 @@ function renderTeacherStats() {
   
   const subjectStats = {};
   statsSubjects.forEach(subj => {
-    const all = [];
-    students.forEach(s => {
-      if (s.grades && s.grades[subj]) all.push(...s.grades[subj]);
-    });
+    const all = filterGrades(students.flatMap(s => s.grades && s.grades[subj] || []));
     if (all.length) {
       subjectStats[subj] = {
         avg: (all.reduce((a,g) => a + g.value, 0) / all.length).toFixed(2),
@@ -1958,10 +2020,7 @@ function renderTeacherStats() {
   });
   
   const studentAvgs = students.map(s => {
-    const all = [];
-    statsSubjects.forEach(subj => {
-      if (s.grades && s.grades[subj]) all.push(...s.grades[subj]);
-    });
+    const all = filterGrades(statsSubjects.flatMap(subj => s.grades && s.grades[subj] || []));
     return {
       name: s.fullname,
       avg: all.length ? (all.reduce((a,g) => a + g.value, 0) / all.length) : 0,
@@ -2204,7 +2263,7 @@ function renderParentChildren() {
       '<div class="empty-state"><div class="icon">👨‍👩‍👧</div><p>Добавьте ребёнка по его логину</p></div>' :
       `<div class="person-list">
         ${children.map(c => {
-          const allGrades = Object.values(c.grades || {}).flat();
+          const allGrades = filterGrades(Object.values(c.grades || {}).flat());
           const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
           const activeTasks = (c.tasks || []).filter(t => !t.done).length;
           return `
@@ -2229,7 +2288,7 @@ function renderParentChildDetails() {
   const child = users[currentViewStudent];
   if (!child) return '';
   
-  const allGrades = Object.values(child.grades || {}).flat();
+  const allGrades = filterGrades(Object.values(child.grades || {}).flat());
   const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
   const activeTasks = (child.tasks || []).filter(t => !t.done).length;
   const recent = [...allGrades].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5);
@@ -2338,11 +2397,11 @@ function renderParentGrades() {
           ${subjects.length === 0 ? '<div class="empty-state" style="padding:20px"><p>Нет оценок</p></div>' :
             `<table><thead><tr><th>Предмет</th><th>Оценки</th><th>Средний</th></tr></thead><tbody>
               ${subjects.map(subj => {
-                const grades = c.grades[subj];
-                const avg = (grades.reduce((s,g) => s + g.value, 0) / grades.length).toFixed(2);
+                const grades = filterGrades(c.grades[subj]);
+                const avg = grades.length ? (grades.reduce((s,g) => s + g.value, 0) / grades.length).toFixed(2) : '—';
                 return `<tr>
                   <td><b>${escapeHtml(subj)}</b></td>
-                  <td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('')}</td>
+                  <td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>'}</td>
                   <td><b>${avg}</b></td>
                 </tr>`;
               }).join('')}
@@ -2446,21 +2505,21 @@ function renderParentStats() {
     <div class="page-header"><h1>📈 Статистика детей</h1></div>
     
     ${children.map(c => {
-      const allGrades = Object.values(c.grades || {}).flat();
+      const allGrades = filterGrades(Object.values(c.grades || {}).flat());
       const subjects = Object.keys(c.grades || {});
       const avg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
       
       // Место в классе
       const classmates = Object.values(users).filter(u => u.role === 'student' && u.class === c.class);
       const classAvgs = classmates.map(s => {
-        const all = Object.values(s.grades || {}).flat();
+        const all = filterGrades(Object.values(s.grades || {}).flat());
         return { name: s.fullname, avg: all.length ? all.reduce((a,g) => a + g.value, 0) / all.length : 0 };
       }).sort((a,b) => b.avg - a.avg);
       const rank = classAvgs.findIndex(s => s.name === c.fullname) + 1;
       
       const subjectStats = subjects.map(s => {
-        const g = c.grades[s];
-        return { subj: s, avg: g.reduce((a,x) => a + x.value, 0) / g.length };
+        const g = filterGrades(c.grades[s]);
+        return { subj: s, avg: g.length ? g.reduce((a,x) => a + x.value, 0) / g.length : 0 };
       }).sort((a,b) => b.avg - a.avg);
       
       return `
@@ -3140,7 +3199,7 @@ function renderAdminStats() {
   });
   
   const classStats = Object.entries(classes).map(([cls, studs]) => {
-    const allGrades = studs.flatMap(s => Object.values(s.grades || {}).flat());
+    const allGrades = filterGrades(studs.flatMap(s => Object.values(s.grades || {}).flat()));
     return {
       cls,
       count: studs.length,
@@ -3151,11 +3210,11 @@ function renderAdminStats() {
   // По учителям
   const teacherStats = teachers.map(t => {
     const studs = (t.students || []).map(u => users[u]).filter(Boolean);
-    const allGrades = studs.flatMap(s => 
+    const allGrades = filterGrades(studs.flatMap(s => 
       Object.entries(s.grades || {})
         .filter(([subj]) => (t.subjects || []).includes(subj))
         .flatMap(([_, g]) => g)
-    );
+    ));
     return {
       name: t.fullname,
       subjects: (t.subjects || []).join(', '),
@@ -3166,8 +3225,8 @@ function renderAdminStats() {
   }).sort((a,b) => parseFloat(b.avg) - parseFloat(a.avg));
   
   // Общее распределение оценок
-  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-  students.forEach(s => Object.values(s.grades || {}).flat().forEach(g => distribution[g.value]++));
+  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0 };
+  filterGrades(students.flatMap(s => Object.values(s.grades || {}).flat())).forEach(g => distribution[g.value]++);
   const total = Object.values(distribution).reduce((s,v) => s+v, 0);
   
   return `
@@ -3243,7 +3302,7 @@ function renderAdminRating() {
   
   // Общий рейтинг
   const overall = students.map(s => {
-    const allGrades = Object.values(s.grades || {}).flat();
+    const allGrades = filterGrades(Object.values(s.grades || {}).flat());
     return {
       name: s.fullname,
       class: s.class || '—',
@@ -3258,7 +3317,7 @@ function renderAdminRating() {
   students.forEach(s => {
     const cls = s.class || 'Без класса';
     if (!classes[cls]) classes[cls] = [];
-    const allGrades = Object.values(s.grades || {}).flat();
+    const allGrades = filterGrades(Object.values(s.grades || {}).flat());
     if (allGrades.length) {
       classes[cls].push({
         name: s.fullname,
@@ -4015,6 +4074,82 @@ function saveTeacherTask() {
   closeModal();
   renderPage(currentPage);
   toast(`✅ Задание добавлено ${addedCount} ученикам класса ${currentClass}`);
+}
+
+function editTeacherTask(taskIdx) {
+  const task = allTasks[taskIdx];
+  if (!task) return;
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>✏️ Редактировать задание</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Ученик</label>
+      <input type="text" value="${escapeHtml(task.studentName)}" readonly>
+    </div>
+    <div class="form-group">
+      <label>Предмет</label>
+      <input type="text" value="${escapeHtml(task.subject)}" readonly>
+    </div>
+    <div class="form-group">
+      <label>Задание</label>
+      <textarea id="editTeacherTaskText" rows="3">${escapeHtml(task.text)}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Срок выполнения</label>
+      <input type="date" id="editTeacherTaskDate" value="${task.dueDate}">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" onclick="deleteTeacherTask(${taskIdx})">🗑️ Удалить</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveEditTeacherTask(${taskIdx})">Сохранить</button>
+    </div>
+  `);
+}
+
+function saveEditTeacherTask(taskIdx) {
+  const text = document.getElementById('editTeacherTaskText').value.trim();
+  const dueDate = document.getElementById('editTeacherTaskDate').value;
+  
+  if (!text) return toast('Введите задание', 'error');
+  if (!dueDate) return toast('Укажите срок', 'error');
+  
+  const users = DB.getUsers();
+  const task = allTasks[taskIdx];
+  
+  // Найдём ученика и обновим задание
+  const student = users[task.studentUsername];
+  if (student && student.tasks) {
+    const taskInStudent = student.tasks.find(t => t.text === task.text && t.dueDate === task.dueDate && t.subject === task.subject);
+    if (taskInStudent) {
+      taskInStudent.text = text;
+      taskInStudent.dueDate = dueDate;
+    }
+  }
+  
+  DB.saveUsers(users);
+  closeModal();
+  renderPage(currentPage);
+  toast('✅ Задание обновлено');
+}
+
+function deleteTeacherTask(taskIdx) {
+  if (!confirm('Удалить задание?')) return;
+  
+  const users = DB.getUsers();
+  const task = allTasks[taskIdx];
+  
+  const student = users[task.studentUsername];
+  if (student && student.tasks) {
+    student.tasks = student.tasks.filter(t => !(t.text === task.text && t.dueDate === task.dueDate && t.subject === task.subject && t.teacherUsername === currentUser.username));
+  }
+  
+  DB.saveUsers(users);
+  closeModal();
+  renderPage(currentPage);
+  toast('🗑️ Задание удалено');
 }
 
 // ============ ОБЩЕЕ ============
