@@ -685,12 +685,9 @@ async function createFirstAdmin() {
   
   const salt = generateSalt();
   const hash = await hashPassword(salt + pass);
-  const deviceId = getDeviceId();
-  
   users[username] = {
     username, fullname, school, salt, hash,
     role: 'admin',
-    adminDeviceId: deviceId, // ПРИВЯЗКА К УСТРОЙСТВУ
     created: Date.now(),
     settings: { theme: 'light' }
   };
@@ -714,14 +711,6 @@ async function login() {
   
   const hash = await hashPassword(user.salt + pass);
   if (hash !== user.hash) return showError('Неверный логин или пароль');
-  
-  // ПРОВЕРКА ПРИВЯЗКИ АДМИНА К УСТРОЙСТВУ
-  if (user.role === 'admin') {
-    const currentDeviceId = getDeviceId();
-    if (user.adminDeviceId && user.adminDeviceId !== currentDeviceId) {
-      return showError('🔒 Доступ запрещён: администратор привязан к другому устройству. Обратитесь к владельцу устройства для сброса привязки.');
-    }
-  }
   
   currentUser = { username, ...user };
   DB.setCurrent(username);
@@ -3707,14 +3696,6 @@ function renderSettings() {
         <span class="role-badge ${currentUser.role}" style="font-size:12px;padding:4px 10px">${roleLabel(currentUser.role)}</span>
       </div>
       
-      ${isAdmin ? `
-        <div class="setting-row">
-          <div>
-            <div style="font-weight:600">🔐 Привязка к устройству</div>
-            <div style="font-size:12px;color:var(--text-muted)">DeviceID: <code>${deviceId.substring(0, 20)}...</code></div>
-          </div>
-          <button class="btn btn-warning btn-sm" onclick="resetDeviceBinding()">🔄 Сбросить</button>
-        </div>
       ` : ''}
     </div>
     
@@ -3752,16 +3733,6 @@ function toggleTheme() {
   if (isDark) document.documentElement.setAttribute('data-theme', 'dark');
   else document.documentElement.removeAttribute('data-theme');
   saveUser();
-}
-
-function resetDeviceBinding() {
-  if (!confirm('Сбросить привязку админа к устройству? Вы сможете войти с нового устройства, но текущий сеанс будет завершён.')) return;
-  if (!confirm('ТОЧНО сбросить? Это действие необратимо.')) return;
-  
-  const users = DB.getUsers();
-  users[currentUser.username].adminDeviceId = getDeviceId();
-  DB.saveUsers(users);
-  toast('✅ Привязка обновлена на текущее устройство');
 }
 
 function openPasswordModal() {
@@ -4181,7 +4152,6 @@ function saveUser() {
     u.children = currentUser.children;
   } else if (currentUser.role === 'admin') {
     u.school = currentUser.school;
-    u.adminDeviceId = currentUser.adminDeviceId;
   }
   keep.forEach(k => u[k] = currentUser[k]);
   DB.saveUsers(users);
@@ -4265,16 +4235,7 @@ function initAuthScreen() {
   if (saved) {
     const users = DB.getUsers();
     if (users[saved]) {
-      const user = users[saved];
-      // Проверка привязки админа
-      if (user.role === 'admin') {
-        const currentDeviceId = getDeviceId();
-        if (user.adminDeviceId && user.adminDeviceId !== currentDeviceId) {
-          DB.clearCurrent();
-          return;
-        }
-      }
-      currentUser = { username: saved, ...user };
+      currentUser = { username: saved, ...users[saved] };
       startSession();
     }
   }
