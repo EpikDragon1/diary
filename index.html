@@ -409,34 +409,6 @@ tr:hover { background: var(--surface-2); }
     
     <div class="error-msg" id="authError"></div>
     
-    <!-- Форма первого запуска (создание админа) -->
-    <div id="firstRunForm" style="display:none">
-      <div class="info-banner warn">
-        ⚠️ <div><b>Первый запуск системы!</b><br>Создайте аккаунт администратора. Он будет привязан к этому устройству.</div>
-      </div>
-      <div class="form-group">
-        <label>Логин администратора</label>
-        <input type="text" id="adminUsername" placeholder="admin">
-      </div>
-      <div class="form-group">
-        <label>Полное имя</label>
-        <input type="text" id="adminFullname" placeholder="Иванов Иван Иванович">
-      </div>
-      <div class="form-group">
-        <label>Название учебного заведения</label>
-        <input type="text" id="adminSchool" placeholder="Школа №1">
-      </div>
-      <div class="form-group">
-        <label>Пароль (мин. 8 символов)</label>
-        <input type="password" id="adminPassword">
-      </div>
-      <div class="form-group">
-        <label>Повторите пароль</label>
-        <input type="password" id="adminPassword2">
-      </div>
-      <button class="btn btn-warning" style="width:100%" onclick="createFirstAdmin()">👑 Создать администратора</button>
-    </div>
-    
     <!-- Форма входа -->
     <div id="loginForm" style="display:none">
       <div class="info-banner warn">
@@ -646,55 +618,11 @@ function showError(msg) {
 }
 function hideError() { document.getElementById('authError').classList.remove('show'); }
 
-function showFirstRun() {
-  const el = id => document.getElementById(id);
-  el('firstRunForm').style.display = 'block';
-  el('loginForm').style.display = 'none';
-  if (el('registerForm')) el('registerForm').style.display = 'none';
-  el('authSubtitle').textContent = 'Первый запуск — создание администратора';
-  hideError();
-}
 function showLogin() {
   const el = id => document.getElementById(id);
-  el('firstRunForm').style.display = 'none';
   el('loginForm').style.display = 'block';
-  if (el('registerForm')) el('registerForm').style.display = 'none';
   el('authSubtitle').textContent = 'Для учеников, учителей и родителей';
   hideError();
-}
-
-// Создание первого админа
-async function createFirstAdmin() {
-  const users = DB.getUsers();
-  if (Object.values(users).some(u => u.role === 'admin')) {
-    return showError('Администратор уже существует');
-  }
-  
-  const username = document.getElementById('adminUsername').value.trim();
-  const fullname = document.getElementById('adminFullname').value.trim();
-  const school = document.getElementById('adminSchool').value.trim();
-  const pass = document.getElementById('adminPassword').value;
-  const pass2 = document.getElementById('adminPassword2').value;
-  
-  if (username.length < 3) return showError('Логин минимум 3 символа');
-  if (!fullname) return showError('Введите полное имя');
-  if (!school) return showError('Введите название учебного заведения');
-  if (pass.length < 8) return showError('Пароль минимум 8 символов');
-  if (pass !== pass2) return showError('Пароли не совпадают');
-  if (users[username]) return showError('Пользователь уже существует');
-  
-  const salt = generateSalt();
-  const hash = await hashPassword(salt + pass);
-  users[username] = {
-    username, fullname, school, salt, hash,
-    role: 'admin',
-    created: Date.now(),
-    settings: { theme: 'light' }
-  };
-  DB.saveUsers(users);
-  toast('✅ Администратор создан! Войдите в систему');
-  showLogin();
-  document.getElementById('loginUsername').value = username;
 }
 
 // Вход
@@ -4214,14 +4142,7 @@ async function askResetPassword() {
 }
 
 function initAuthScreen() {
-  const users = DB.getUsers();
-  const hasAdmin = Object.values(users).some(u => u.role === 'admin');
-  
-  if (!hasAdmin) {
-    showFirstRun();
-  } else {
-    showLogin();
-  }
+  showLogin();
 }
 
 // Запуск при загрузке страницы
