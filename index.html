@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://www.gstatic.com https://*.firebaseio.com; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://*.firebaseio.com https://www.googleapis.com;">
 <title>📚 Электронный дневник</title>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -493,6 +494,61 @@ tr:hover { background: var(--surface-2); }
 
 <script>
 // ============ БЕЗОПАСНОСТЬ ============
+// Секретный ключ приложения (не должен быть публичным)
+const APP_SECRET = 'diary_school_2024_secure_key_v2';
+
+// Защита от перебора паролей
+let loginAttempts = {};
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_TIME = 300000; // 5 минут
+
+// Проверка секретного ключа
+function verifyAppKey() {
+  const storedKey = localStorage.getItem('diary_appKey');
+  if (storedKey === APP_SECRET) return true;
+  
+  // Спрашиваем ключ один раз
+  const key = prompt('🔐 Введите секретный ключ приложения:');
+  if (key === APP_SECRET) {
+    localStorage.setItem('diary_appKey', APP_SECRET);
+    return true;
+  }
+  
+  if (key) {
+    alert('❌ Неверный ключ приложения!');
+    localStorage.removeItem('diary_appKey');
+  }
+  return false;
+}
+
+// Проверка попытки входа (защита от брутфорса)
+function checkLoginAttempts(username) {
+  const now = Date.now();
+  const attempts = loginAttempts[username] || [];
+  
+  // Удаляем старые попытки (> 30 мин)
+  const recentAttempts = attempts.filter(a => now - a < LOGIN_LOCKOUT_TIME);
+  
+  if (recentAttempts.length >= MAX_LOGIN_ATTEMPTS) {
+    const timeLeft = Math.ceil((LOGIN_LOCKOUT_TIME - (now - recentAttempts[0])) / 60000);
+    return { blocked: true, timeLeft };
+  }
+  
+  loginAttempts[username] = recentAttempts;
+  return { blocked: false };
+}
+
+// Запись неудачной попытки
+function recordLoginAttempt(username) {
+  if (!loginAttempts[username]) loginAttempts[username] = [];
+  loginAttempts[username].push(Date.now());
+}
+
+// Очистка попыток после успешного входа
+function clearLoginAttempts(username) {
+  delete loginAttempts[username];
+}
+
 async function hashPassword(password) {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
@@ -571,12 +627,16 @@ let firebaseApp, firebaseDB;
 let isOnline = true;
 let firebaseInitialized = false;
 let usersCache = {}; // Кэш пользователей для быстрого доступа
+let appKeyVerified = false;
 
 try {
-  firebaseApp = firebase.initializeApp(firebaseConfig);
-  firebaseDB = firebase.database();
-  firebaseInitialized = true;
-  console.log('✅ Firebase инициализирован');
+  appKeyVerified = verifyAppKey();
+  if (appKeyVerified) {
+    firebaseApp = firebase.initializeApp(firebaseConfig);
+    firebaseDB = firebase.database();
+    firebaseInitialized = true;
+    console.log('✅ Firebase инициализирован');
+  }
   
   // Проверка онлайн-статуса
   window.addEventListener('online', () => {
@@ -606,7 +666,7 @@ function updateOnlineStatus() {
 
 // Загрузка из Firebase
 async function syncFromFirebase() {
-  if (!firebaseInitialized || !isOnline) return;
+  if (!firebaseInitialized || !isOnline || !appKeyVerified) return;
   try {
     const snapshot = await firebaseDB.ref('users').once('value');
     const data = snapshot.val();
@@ -621,7 +681,7 @@ async function syncFromFirebase() {
 
 // Подписка на обновления в реальном времени
 function subscribeToUsers() {
-  if (!firebaseInitialized) return;
+  if (!firebaseInitialized || !appKeyVerified) return;
   
   firebaseDB.ref('users').on('value', (snapshot) => {
     const data = snapshot.val();
@@ -675,8 +735,8 @@ const DB = {
     try { localStorage.setItem('diary_users', JSON.stringify(u)); } 
     catch (e) { console.error('Ошибка записи localStorage:', e); }
     
-    // Сохраняем в Firebase если онлайн
-    if (firebaseInitialized && isOnline) {
+    // Сохраняем в Firebase если онлайн и ключ проверен
+    if (firebaseInitialized && isOnline && appKeyVerified) {
       try {
         await firebaseDB.ref('users').set(u);
         usersCache = u; // Обновляем кэш
@@ -690,6 +750,37 @@ const DB = {
   setCurrent(u) { localStorage.setItem('diary_current', u); },
   clearCurrent() { localStorage.removeItem('diary_current'); }
 };
+
+// ============ ШКОЛЫ ============
+function getSchools() {
+  try {
+    return JSON.parse(localStorage.getItem('diary_schools') || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveSchools(schools) {
+  localStorage.setItem('diary_schools', JSON.stringify(schools));
+}
+
+function getCurrentSchoolId() {
+  return localStorage.getItem('diary_currentSchoolId') || '';
+}
+
+function setCurrentSchoolId(schoolId) {
+  localStorage.setItem('diary_currentSchoolId', schoolId);
+}
+
+function getCurrentSchoolName() {
+  const schools = getSchools();
+  const schoolId = getCurrentSchoolId();
+  return schools[schoolId] ? schools[schoolId].name : 'Учебное заведение';
+}
+
+function generateSchoolId() {
+  return 'school_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
 
 // ============ ПРЕДМЕТЫ ============
 const DEFAULT_SUBJECTS = [
@@ -778,13 +869,28 @@ async function login() {
   
   if (!username || !pass) return showError('Введите логин и пароль');
   
+  // Проверка попыток входа
+  const attemptCheck = checkLoginAttempts(username);
+  if (attemptCheck.blocked) {
+    return showError(`❌ Слишком много попыток. Подождите ${attemptCheck.timeLeft} мин.`);
+  }
+  
   const users = DB.getUsers();
   const user = users[username];
   
-  if (!user) return showError('Неверный логин или пароль');
+  if (!user) {
+    recordLoginAttempt(username);
+    return showError('Неверный логин или пароль');
+  }
   
   const hash = await hashPassword(user.salt + pass);
-  if (hash !== user.hash) return showError('Неверный логин или пароль');
+  if (hash !== user.hash) {
+    recordLoginAttempt(username);
+    return showError('Неверный логин или пароль');
+  }
+  
+  // Успешный вход — сброс попыток
+  clearLoginAttempts(username);
   
   currentUser = { username, ...user };
   DB.setCurrent(username);
@@ -804,6 +910,19 @@ function logout() {
 function startSession() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('app').classList.add('active');
+  
+  // Устанавливаем schoolId если нет
+  if (!currentUser.schoolId) {
+    const schools = getSchools();
+    const schoolId = Object.keys(schools)[0] || generateSchoolId();
+    if (!schools[schoolId]) {
+      schools[schoolId] = { id: schoolId, name: 'Школа №1', created: Date.now() };
+      saveSchools(schools);
+    }
+    currentUser.schoolId = schoolId;
+    setCurrentSchoolId(schoolId);
+    saveUser();
+  }
   
   document.getElementById('userName').textContent = escapeHtml(currentUser.fullname);
   const roleBadge = document.getElementById('roleBadge');
@@ -938,6 +1057,7 @@ function buildNavigation() {
   } else if (currentUser.role === 'admin') {
     items = [
       { id: 'admin-dashboard', icon: '🏠', label: 'Панель управления' },
+      { id: 'admin-schools', icon: '🏫', label: 'Школы' },
       { id: 'admin-teachers', icon: '👨‍🏫', label: 'Учителя' },
       { id: 'admin-students', icon: '👨‍🎓', label: 'Ученики' },
       { id: 'admin-class-letters', icon: '🔤', label: 'Буквы классов' },
@@ -1004,6 +1124,7 @@ function renderPage(pageId) {
     else if (pageId === 'settings') main.innerHTML = renderSettings();
   } else if (r === 'admin') {
     if (pageId === 'admin-dashboard') main.innerHTML = renderAdminDashboard();
+    else if (pageId === 'admin-schools') main.innerHTML = renderAdminSchools();
     else if (pageId === 'admin-teachers') main.innerHTML = renderAdminTeachers();
     else if (pageId === 'admin-students') main.innerHTML = renderAdminStudents();
     else if (pageId === 'admin-class-letters') main.innerHTML = renderAdminClassLetters();
@@ -1250,7 +1371,8 @@ function renderStudentStats() {
   
   // Место в классе
   const users = DB.getUsers();
-  const classmates = Object.values(users).filter(u => u.role === 'student' && u.class === currentUser.class);
+  const currentSchoolId = getCurrentSchoolId();
+  const classmates = Object.values(users).filter(u => u.role === 'student' && u.class === currentUser.class && u.schoolId === currentSchoolId);
   const classAvgs = classmates.map(c => {
     const all = filterGrades(Object.values(c.grades || {}).flat());
     return { name: c.fullname, avg: all.length ? all.reduce((s,g) => s + g.value, 0) / all.length : 0 };
@@ -1312,11 +1434,12 @@ function renderStudentStats() {
 // ============ УЧИТЕЛЬ: УЧЕНИКИ ============
 function renderTeacherStudents() {
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников для текущего выбранного класса
+  // Получаем учеников для текущего выбранного класса (с учетом школы)
   let students = [];
   if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
   }
   
   const isHomeroom = currentUser.isHomeroomTeacher;
@@ -1468,8 +1591,9 @@ async function resetStudentPassword(username) {
 // ============ КЛАССНЫЙ РУКОВОДИТЕЛЬ: КЛАСС ============
 function renderHomeroomClass() {
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   const cls = currentUser.homeroomClass;
-  const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls);
+  const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
   
   // Считаем статистику по классу
   const allGrades = filterGrades(classStudents.flatMap(s => Object.values(s.grades || {}).flat()));
@@ -1600,6 +1724,7 @@ async function addStudent() {
       fullname: username, // Заполним позже
       salt, hash,
       role: 'student',
+      schoolId: getCurrentSchoolId(),
       class: currentUser.homeroomClass,
       grades: {},
       tasks: [],
@@ -1740,6 +1865,7 @@ async function processImportStudents() {
       fullname: s.fullName,
       salt, hash,
       role: 'student',
+      schoolId: getCurrentSchoolId(),
       class: cls,
       grades: {},
       tasks: [],
@@ -1916,11 +2042,12 @@ function printPasswords() {
 // ============ УЧИТЕЛЬ: ЖУРНАЛ ОЦЕНОК ============
 function renderTeacherGrades() {
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса
+  // Получаем учеников текущего класса (с учетом школы)
   let students = [];
   if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
   }
   
   const isHomeroom = currentUser.isHomeroomTeacher;
@@ -1987,11 +2114,12 @@ let allTasks = [];
 // ============ УЧИТЕЛЬ: ЗАДАНИЯ ============
 function renderTeacherTasks() {
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса
+  // Получаем учеников текущего класса (с учетом школы)
   let students = [];
   if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
   }
   
   const isHomeroom = currentUser.isHomeroomTeacher;
@@ -2052,11 +2180,12 @@ function renderTeacherTasks() {
 // ============ УЧИТЕЛЬ: СТАТИСТИКА ============
 function renderTeacherStats() {
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса
+  // Получаем учеников текущего класса (с учетом школы)
   let students = [];
   if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
   }
   
   const isHomeroom = currentUser.isHomeroomTeacher;
@@ -2143,11 +2272,12 @@ function renderTeacherStats() {
 // ============ УЧИТЕЛЬ: РОДИТЕЛИ ============
 function renderTeacherParents() {
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса
+  // Получаем учеников текущего класса (с учетом школы)
   let students = [];
   if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
   }
   
   // Собираем всех родителей учеников
@@ -2263,6 +2393,7 @@ async function addParent() {
     parent = {
       username, fullname, salt, hash,
       role: 'parent',
+      schoolId: getCurrentSchoolId(),
       children: [],
       created: Date.now(),
       settings: { theme: 'light' }
@@ -2633,13 +2764,18 @@ function renderParentStats() {
 // ============ АДМИН: ПАНЕЛЬ УПРАВЛЕНИЯ ============
 function renderAdminDashboard() {
   const users = DB.getUsers();
-  const all = Object.values(users);
+  const currentSchoolId = getCurrentSchoolId();
+  
+  // Фильтруем пользователей по текущей школе
+  const schoolUsers = Object.values(users).filter(u => u.schoolId === currentSchoolId);
+  const all = schoolUsers;
   const students = all.filter(u => u.role === 'student');
   const teachers = all.filter(u => u.role === 'teacher');
   const parents = all.filter(u => u.role === 'parent');
   
   const allGrades = students.flatMap(s => Object.values(s.grades || {}).flat());
   const overallAvg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
+  const schoolName = getCurrentSchoolName();
   
   return `
     <div class="page-header">
@@ -2678,16 +2814,186 @@ function renderAdminDashboard() {
         <div class="info-banner danger" style="margin-bottom:15px">
           🚨 <div><b>Внимание!</b> Это действие безвозвратно удалит ВСЕ данные системы: пользователей, оценки, задания.</div>
         </div>
-        <button class="btn btn-danger" onclick="adminResetPassword()">🔄 Сбросить все данные</button>
+        <button class="btn btn-danger" onclick="adminResetFromPanel()">🔄 Сбросить все данные</button>
       </div>
     </div>
+  `;
+}
+
+// ============ АДМИН: ШКОЛЫ ============
+function renderSchoolsList() {
+  const schools = getSchools();
+  const currentSchoolId = getCurrentSchoolId();
+  const users = DB.getUsers();
+  
+  const schoolEntries = Object.entries(schools);
+  
+  if (schoolEntries.length === 0) {
+    return '<p style="color:var(--text-muted)">Нет школ</p>';
+  }
+  
+  return schoolEntries.map(([id, school]) => {
+    const isActive = id === currentSchoolId;
+    // Считаем пользователей в школе
+    const schoolUsers = Object.values(users).filter(u => u.schoolId === id);
+    const students = schoolUsers.filter(u => u.role === 'student').length;
+    const teachers = schoolUsers.filter(u => u.role === 'teacher').length;
+    
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;${isActive ? 'background:var(--surface-2);border-color:var(--primary)' : ''}">
+        <div>
+          <div style="font-weight:600">${escapeHtml(school.name)} ${isActive ? '<span style="color:var(--primary);font-size:11px">● Текущая</span>' : ''}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
+            👨‍🎓 ${students} учеников • 👨‍🏫 ${teachers} учителей
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${!isActive ? `<button class="btn btn-secondary btn-sm" onclick="switchSchool('${id}')">🔄 Переключить</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="deleteSchool('${id}')">🗑️</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openAddSchoolModal() {
+  openModal(`
+    <div class="modal-header">
+      <h3>➕ Добавить школу</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Название школы</label>
+      <input type="text" id="schoolName" placeholder="Например: Школа №1">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="addSchool()">Создать</button>
+    </div>
+  `);
+}
+
+function addSchool() {
+  const name = document.getElementById('schoolName').value.trim();
+  if (!name) return toast('Введите название школы', 'error');
+  
+  const schools = getSchools();
+  const schoolId = generateSchoolId();
+  
+  schools[schoolId] = {
+    id: schoolId,
+    name: name,
+    created: Date.now()
+  };
+  
+  saveSchools(schools);
+  setCurrentSchoolId(schoolId);
+  
+  closeModal();
+  renderPage('admin-dashboard');
+  toast('✅ Школа создана: ' + name);
+}
+
+function switchSchool(schoolId) {
+  if (!confirm('Переключиться на школу "' + (getSchools()[schoolId]?.name || '') + '"?')) return;
+  setCurrentSchoolId(schoolId);
+  renderPage('admin-dashboard');
+  toast('🔄 Школа переключена');
+}
+
+function deleteSchool(schoolId) {
+  const schools = getSchools();
+  const schoolName = schools[schoolId]?.name || '';
+  
+  if (!confirm('⚠️ Удалить школу "' + schoolName + '"? Все пользователи этой школы будут удалены безвозвратно!')) return;
+  if (!confirm('ПОСЛЕДНИЙ РАЗ: удалить школу "' + schoolName + '"?')) return;
+  
+  const users = DB.getUsers();
+  
+  // Удаляем всех пользователей школы
+  Object.keys(users).forEach(username => {
+    if (users[username].schoolId === schoolId) {
+      delete users[username];
+    }
+  });
+  
+  DB.saveUsers(users);
+  
+  // Удаляем школу
+  delete schools[schoolId];
+  saveSchools(schools);
+  
+  // Если удалили текущую школу — переключимся на первую доступную
+  if (getCurrentSchoolId() === schoolId) {
+    const remainingSchools = Object.keys(schools);
+    if (remainingSchools.length > 0) {
+      setCurrentSchoolId(remainingSchools[0]);
+    } else {
+      setCurrentSchoolId('');
+    }
+  }
+  
+  renderPage('admin-dashboard');
+  toast('🗑️ Школа "' + schoolName + '" удалена');
+}
+
+// ============ АДМИН: ШКОЛЫ (отдельная страница) ============
+function renderAdminSchools() {
+  const schools = getSchools();
+  const currentSchoolId = getCurrentSchoolId();
+  const users = DB.getUsers();
+  
+  const schoolEntries = Object.entries(schools);
+  
+  if (schoolEntries.length === 0) {
+    return `
+      <div class="page-header">
+        <h1>🏫 Школы</h1>
+        <button class="btn btn-primary" onclick="openAddSchoolModal()">➕ Добавить школу</button>
+      </div>
+      <div class="empty-state"><div class="icon">🏫</div><p>Нет школ</p></div>
+    `;
+  }
+  
+  return `
+    <div class="page-header">
+      <h1>🏫 Школы</h1>
+      <button class="btn btn-primary" onclick="openAddSchoolModal()">➕ Добавить школу</button>
+    </div>
+    
+    <div class="info-banner info" style="margin-bottom:20px">
+      ℹ️ <div><b>Мульти-школьная система.</b> Вы можете создавать и управлять несколькими школами. Каждая школа имеет свои данные, учителей и учеников.</div>
+    </div>
+    
+    ${schoolEntries.map(([id, school]) => {
+      const isActive = id === currentSchoolId;
+      const schoolUsers = Object.values(users).filter(u => u.schoolId === id);
+      const students = schoolUsers.filter(u => u.role === 'student').length;
+      const teachers = schoolUsers.filter(u => u.role === 'teacher').length;
+      
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border:2px solid ${isActive ? 'var(--primary)' : 'var(--border)'};border-radius:12px;margin-bottom:12px;${isActive ? 'background:var(--surface-2)' : ''}">
+          <div>
+            <div style="font-weight:700;font-size:16px">${escapeHtml(school.name)} ${isActive ? '<span style="color:var(--primary);font-size:12px">● Текущая школа</span>' : ''}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:6px">
+              👨‍🎓 ${students} учеников • 👨‍🏫 ${teachers} учителей • 📅 Создана: ${new Date(school.created).toLocaleDateString('ru-RU')}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            ${!isActive ? `<button class="btn btn-secondary" onclick="switchSchool('${id}')">🔄 Переключить</button>` : '<span style="color:var(--primary);font-size:12px;padding:4px 8px;background:var(--surface);border-radius:6px">Текущая</span>'}
+            <button class="btn btn-danger" onclick="deleteSchool('${id}')">🗑️ Удалить</button>
+          </div>
+        </div>
+      `;
+    }).join('')}
   `;
 }
 
 // ============ АДМИН: УЧИТЕЛЯ ============
 function renderAdminTeachers() {
   const users = DB.getUsers();
-  const teachers = Object.values(users).filter(u => u.role === 'teacher');
+  const currentSchoolId = getCurrentSchoolId();
+  const teachers = Object.values(users).filter(u => u.role === 'teacher' && u.schoolId === currentSchoolId);
   
   return `
     <div class="page-header">
@@ -2902,6 +3208,7 @@ async function createTeacher() {
   users[username] = {
     username, fullname, salt, hash,
     role: 'teacher',
+    schoolId: getCurrentSchoolId(),
     subjects,
     customSubjects: [..._teacherCustomSubjects],
     classes,
@@ -2914,8 +3221,9 @@ async function createTeacher() {
   
   // Если учитель классный руководитель — добавить всех учеников этого класса
   if (homeroomClass) {
+    const currentSchoolId = getCurrentSchoolId();
     Object.values(users).forEach(u => {
-      if (u.role === 'student' && u.class === homeroomClass) {
+      if (u.role === 'student' && u.class === homeroomClass && u.schoolId === currentSchoolId) {
         if (!users[username].students.includes(u.username)) {
           users[username].students.push(u.username);
         }
@@ -3116,6 +3424,7 @@ async function saveTeacher(username) {
   t.fullname = document.getElementById('editFullname').value.trim();
   t.subjects = [..._editTeacherSubjects];
   t.classes = [..._editTeacherClasses];
+  t.schoolId = getCurrentSchoolId();
   
   // Обновляем статус классного руководителя
   const newHomeroomNum = document.getElementById('editTeacherHomeroomClass').value;
@@ -3131,7 +3440,7 @@ async function saveTeacher(username) {
   if (newHomeroom && !wasHomeroom) {
     // Был обычным учителем, стал классным
     Object.values(users).forEach(u => {
-      if (u.role === 'student' && u.class === newHomeroom) {
+      if (u.role === 'student' && u.class === newHomeroom && u.schoolId === getCurrentSchoolId()) {
         if (!t.students.includes(u.username)) {
           t.students.push(u.username);
         }
@@ -3212,12 +3521,13 @@ function deleteTeacher(username) {
 // ============ АДМИН: УЧЕНИКИ ============
 function renderAdminStudents() {
   const users = DB.getUsers();
-  const students = Object.values(users).filter(u => u.role === 'student');
+  const currentSchoolId = getCurrentSchoolId();
+  const students = Object.values(users).filter(u => u.role === 'student' && u.schoolId === currentSchoolId);
   
   return `
     <div class="page-header"><h1>👨‍🎓 Все ученики</h1></div>
     
-    <div class="info-banner info">ℹ️ Полный список учеников системы</div>
+    <div class="info-banner info">ℹ️ Полный список учеников школы "${getCurrentSchoolName()}"</div>
     
     ${students.length === 0 ? 
       '<div class="empty-state"><div class="icon">👨‍🎓</div><p>Пока нет учеников</p></div>' :
@@ -3268,8 +3578,9 @@ function deleteStudent(username) {
 // ============ АДМИН: СТАТИСТИКА ШКОЛЫ ============
 function renderAdminStats() {
   const users = DB.getUsers();
-  const students = Object.values(users).filter(u => u.role === 'student');
-  const teachers = Object.values(users).filter(u => u.role === 'teacher');
+  const currentSchoolId = getCurrentSchoolId();
+  const students = Object.values(users).filter(u => u.role === 'student' && u.schoolId === currentSchoolId);
+  const teachers = Object.values(users).filter(u => u.role === 'teacher' && u.schoolId === currentSchoolId);
   
   // По классам
   const classes = {};
@@ -3374,7 +3685,8 @@ function renderAdminStats() {
 // ============ АДМИН: РЕЙТИНГ ============
 function renderAdminRating() {
   const users = DB.getUsers();
-  const students = Object.values(users).filter(u => u.role === 'student');
+  const currentSchoolId = getCurrentSchoolId();
+  const students = Object.values(users).filter(u => u.role === 'student' && u.schoolId === currentSchoolId);
   
   if (students.length === 0) {
     return `<div class="page-header"><h1>🏆 Рейтинг</h1></div>
@@ -3908,11 +4220,12 @@ function deleteAccount() {
 function openGradeModalForStudent(studentUsername) {
   const targetStudent = studentUsername || currentViewStudent;
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса
+  // Получаем учеников текущего класса (с учетом школы)
   let studentsList = [];
   if (currentClass) {
-    studentsList = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+    studentsList = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
   }
   
   const today = new Date().toISOString().split('T')[0];
@@ -3991,7 +4304,7 @@ function saveTeacherGrade() {
   
   const users = DB.getUsers();
   const student = users[studentUsername];
-  if (!student || student.class !== currentClass) {
+  if (!student || student.class !== currentClass || student.schoolId !== getCurrentSchoolId()) {
     return toast('Нет доступа к этому ученику', 'error');
   }
   
@@ -4026,11 +4339,12 @@ function saveTeacherGrade() {
 function openTaskModalForStudent(studentUsername) {
   const targetStudent = studentUsername || currentViewStudent;
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса
+  // Получаем учеников текущего класса (с учетом школы)
   let studentsList = [];
   if (currentClass) {
-    studentsList = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+    studentsList = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
   }
   
   const today = new Date().toISOString().split('T')[0];
@@ -4103,10 +4417,11 @@ function saveTeacherTask() {
   if (taskDue < today) return toast('Срок выполнения не может быть в прошлом', 'error');
   
   const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса
+  // Получаем учеников текущего класса (с учетом школы)
   let targets = Object.values(users)
-    .filter(u => u.role === 'student' && u.class === currentClass)
+    .filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId)
     .map(u => u.username);
   
   // Если выбран конкретный ученик
@@ -4228,6 +4543,7 @@ function saveUser() {
     u.schedule = currentUser.schedule;
     u.parents = currentUser.parents;
     u.homeroomTeacher = currentUser.homeroomTeacher;
+    u.schoolId = currentUser.schoolId;
     // Сохраняем tempPassword из settings
     if (currentUser.settings && currentUser.settings.tempPassword) {
       if (!u.settings) u.settings = {};
@@ -4239,10 +4555,12 @@ function saveUser() {
     u.students = currentUser.students;
     u.homeroomClass = currentUser.homeroomClass || null;
     u.isHomeroomTeacher = currentUser.isHomeroomTeacher || false;
+    u.schoolId = currentUser.schoolId;
   } else if (currentUser.role === 'parent') {
     u.children = currentUser.children;
+    u.schoolId = currentUser.schoolId;
   } else if (currentUser.role === 'admin') {
-    u.school = currentUser.school;
+    u.schoolId = currentUser.schoolId;
   }
   keep.forEach(k => u[k] = currentUser[k]);
   DB.saveUsers(users);
@@ -4345,6 +4663,43 @@ async function adminResetPassword() {
   setTimeout(() => location.reload(), 1000);
 }
 
+// Сброс данных из панели администратора (с паролем)
+async function adminResetFromPanel() {
+  const pass = prompt('⚠️ ВНИМАНИЕ! Введите пароль администратора для подтверждения удаления ВСЕХ данных:');
+  if (!pass) return;
+  
+  const users = DB.getUsers();
+  const admin = Object.values(users).find(u => u.role === 'admin');
+  
+  if (!admin) {
+    return alert('Администратор не найден');
+  }
+  
+  const hash = await hashPassword(admin.salt + pass);
+  if (hash !== admin.hash) {
+    return alert('❌ Неверный пароль администратора');
+  }
+  
+  if (!confirm('⚠️ ВНИМАНИЕ! Это действие безвозвратно удалит ВСЕ данные системы.')) return;
+  if (!confirm('ПОСЛЕДНИЙ РАЗ: удалить ВСЕ данные?')) return;
+  
+  // Удаляем из localStorage
+  localStorage.clear();
+  
+  // Удаляем из Firebase
+  if (firebaseInitialized && isOnline) {
+    try {
+      await firebaseDB.ref('users').remove();
+      console.log('✅ Данные удалены из Firebase');
+    } catch (e) {
+      console.error('Ошибка удаления из Firebase:', e);
+    }
+  }
+  
+  toast('✅ Данные удалены. Перезагрузите страницу.');
+  setTimeout(() => location.reload(), 1000);
+}
+
 // Показать форму входа для администратора
 function showAdminLogin() {
   document.getElementById('loginForm').style.display = 'none';
@@ -4366,20 +4721,29 @@ async function adminLogin() {
   
   if (!username || !pass) return showError('Введите логин и пароль');
   
-  const hash = await hashPassword(generateSalt() + pass); // dummy hash for check
+  // Проверка попыток входа
+  const attemptCheck = checkLoginAttempts(username);
+  if (attemptCheck.blocked) {
+    return showError(`❌ Слишком много попыток. Подождите ${attemptCheck.timeLeft} мин.`);
+  }
   
   // Ищем админа
   const users = DB.getUsers();
   const admin = Object.values(users).find(u => u.role === 'admin' && u.username === username);
   
   if (!admin) {
+    recordLoginAttempt(username);
     return showError('Администратор не найден');
   }
   
   const correctHash = await hashPassword(admin.salt + pass);
   if (correctHash !== admin.hash) {
+    recordLoginAttempt(username);
     return showError('Неверный пароль');
   }
+  
+  // Успешный вход — сброс попыток
+  clearLoginAttempts(username);
   
   // Входим как админ
   currentUser = { username: admin.username, ...admin };
@@ -4400,6 +4764,17 @@ async function createDefaultAdmin() {
   const adminExists = Object.values(users).some(u => u.role === 'admin');
   if (adminExists) return;
   
+  // Создаем первую школу
+  const schools = getSchools();
+  const schoolId = generateSchoolId();
+  schools[schoolId] = {
+    id: schoolId,
+    name: 'Школа №1',
+    created: Date.now()
+  };
+  saveSchools(schools);
+  setCurrentSchoolId(schoolId);
+  
   // Создаем админа
   const salt = generateSalt();
   const hash = await hashPassword(salt + 'admin');
@@ -4409,13 +4784,14 @@ async function createDefaultAdmin() {
     fullname: 'Администратор',
     salt, hash,
     role: 'admin',
-    school: 'Учебное заведение',
+    schoolId: schoolId,
     created: Date.now(),
     settings: { theme: 'light' }
   };
   
   DB.saveUsers(users);
   console.log('✅ Создан админ по умолчанию: admin / admin');
+  console.log('✅ Создана школа:', schools[schoolId].name);
 }
 
 // Запуск при загрузке страницы
