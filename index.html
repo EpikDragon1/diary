@@ -427,7 +427,26 @@ tr:hover { background: var(--surface-2); }
       </div>
       <button class="btn btn-primary" onclick="login()">🔓 Войти</button>
       <div style="margin-top:10px;text-align:center">
-        <button class="btn btn-secondary btn-sm" onclick="askResetPassword()" style="font-size:11px">🔄 Сбросить все данные</button>
+        <button class="btn btn-secondary btn-sm" onclick="showAdminLogin()" style="font-size:11px">👑 Вход для администраторов</button>
+      </div>
+    </div>
+    
+    <!-- Форма входа для администратора -->
+    <div id="adminLoginForm" style="display:none">
+      <div class="info-banner success">
+        👑 <div>Вход в систему только для администраторов.</div>
+      </div>
+      <div class="form-group">
+        <label>Имя пользователя</label>
+        <input type="text" id="adminLoginUsername" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" id="adminLoginPassword" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" onclick="adminLogin()">🔓 Войти как админ</button>
+      <div style="margin-top:10px;text-align:center">
+        <button class="btn btn-secondary btn-sm" onclick="showLogin()" style="font-size:11px">← Назад ко входу</button>
       </div>
     </div>
   </div>
@@ -2650,6 +2669,18 @@ function renderAdminDashboard() {
       <div class="table-header"><h3>📚 Топ-5 предметов</h3></div>
       ${renderTopSubjects(students, 5)}
     </div>
+    
+    <div class="table-wrapper" style="margin-top:20px">
+      <div class="table-header">
+        <h3>⚠️ Опасная зона</h3>
+      </div>
+      <div style="padding:15px">
+        <div class="info-banner danger" style="margin-bottom:15px">
+          🚨 <div><b>Внимание!</b> Это действие безвозвратно удалит ВСЕ данные системы: пользователей, оценки, задания.</div>
+        </div>
+        <button class="btn btn-danger" onclick="adminResetPassword()">🔄 Сбросить все данные</button>
+      </div>
+    </div>
   `;
 }
 
@@ -4275,8 +4306,116 @@ async function askResetPassword() {
   setTimeout(() => location.reload(), 1000);
 }
 
+// Сброс данных из панели администратора
+async function adminResetPassword() {
+  if (!confirm('⚠️ ВНИМАНИЕ! Это действие безвозвратно удалит ВСЕ данные системы.')) return;
+  if (!confirm('Введите пароль администратора для подтверждения.')) return;
+  
+  const pass = prompt('Введите пароль администратора:');
+  if (!pass) return;
+  
+  const users = DB.getUsers();
+  const admin = Object.values(users).find(u => u.role === 'admin');
+  
+  if (!admin) {
+    return alert('Администратор не найден');
+  }
+  
+  const hash = await hashPassword(admin.salt + pass);
+  if (hash !== admin.hash) {
+    return alert('❌ Неверный пароль администратора');
+  }
+  
+  if (!confirm('ПОСЛЕДНИЙ РАЗ: удалить ВСЕ данные?')) return;
+  
+  // Удаляем из localStorage
+  localStorage.clear();
+  
+  // Удаляем из Firebase
+  if (firebaseInitialized && isOnline) {
+    try {
+      await firebaseDB.ref('users').remove();
+      console.log('✅ Данные удалены из Firebase');
+    } catch (e) {
+      console.error('Ошибка удаления из Firebase:', e);
+    }
+  }
+  
+  toast('✅ Данные удалены. Перезагрузите страницу.');
+  setTimeout(() => location.reload(), 1000);
+}
+
+// Показать форму входа для администратора
+function showAdminLogin() {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('adminLoginForm').style.display = 'block';
+  hideError();
+}
+
+// Показать обычную форму входа
+function showLogin() {
+  document.getElementById('adminLoginForm').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'block';
+  hideError();
+}
+
+// Вход для администратора
+async function adminLogin() {
+  const username = document.getElementById('adminLoginUsername').value.trim();
+  const pass = document.getElementById('adminLoginPassword').value;
+  
+  if (!username || !pass) return showError('Введите логин и пароль');
+  
+  const hash = await hashPassword(generateSalt() + pass); // dummy hash for check
+  
+  // Ищем админа
+  const users = DB.getUsers();
+  const admin = Object.values(users).find(u => u.role === 'admin' && u.username === username);
+  
+  if (!admin) {
+    return showError('Администратор не найден');
+  }
+  
+  const correctHash = await hashPassword(admin.salt + pass);
+  if (correctHash !== admin.hash) {
+    return showError('Неверный пароль');
+  }
+  
+  // Входим как админ
+  currentUser = { username: admin.username, ...admin };
+  DB.setCurrent(username);
+  startSession();
+  toast('👑 Добро пожаловать, администратор!');
+}
+
 function initAuthScreen() {
   showLogin();
+}
+
+// Создание админа по умолчанию
+async function createDefaultAdmin() {
+  const users = DB.getUsers();
+  
+  // Проверяем, есть ли уже админ
+  const adminExists = Object.values(users).some(u => u.role === 'admin');
+  if (adminExists) return;
+  
+  // Создаем админа
+  const salt = generateSalt();
+  const hash = await hashPassword(salt + 'admin');
+  
+  users['admin'] = {
+    username: 'admin',
+    fullname: 'Администратор',
+    salt, hash,
+    role: 'admin',
+    school: 'Учебное заведение',
+    created: Date.now(),
+    settings: { theme: 'light' }
+  };
+  
+  DB.saveUsers(users);
+  console.log('✅ Создан админ по умолчанию: admin / admin');
 }
 
 // Запуск при загрузке страницы
@@ -4288,6 +4427,9 @@ function initAuthScreen() {
   if (firebaseInitialized && isOnline) {
     await syncFromFirebase();
   }
+  
+  // Создаем админа по умолчанию
+  await createDefaultAdmin();
   
   const saved = DB.getCurrent();
   if (saved) {
