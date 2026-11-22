@@ -103,10 +103,9 @@ body {
 .avatar-parent { background: linear-gradient(135deg, #ec4899, #f472b6); }
 .avatar-admin { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
 .user-name { font-weight: 600; font-size: 13px; }
-.user-role { font-size: 11px; color: var(--text-muted); }
 .role-badge {
-  display: inline-block; padding: 1px 6px; border-radius: 8px;
-  font-size: 10px; font-weight: 600; margin-left: 4px;
+  display: inline-block; padding: 2px 8px; border-radius: 8px;
+  font-size: 11px; font-weight: 600; margin-top: 2px;
 }
 .role-badge.student { background: #dbeafe; color: #1e40af; }
 .role-badge.teacher { background: #ede9fe; color: #6d28d9; }
@@ -462,9 +461,7 @@ tr:hover { background: var(--surface-2); }
       <div class="user-avatar" id="userAvatar">И</div>
       <div style="min-width:0;flex:1">
         <div class="user-name" id="userName">Пользователь</div>
-        <div class="user-role">
-          <span class="role-badge student" id="roleBadge">Роль</span>
-        </div>
+        <span class="role-badge student" id="roleBadge">Роль</span>
       </div>
     </div>
     
@@ -808,7 +805,10 @@ function startSession() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('app').classList.add('active');
   
-  document.getElementById('userName').innerHTML = `${escapeHtml(currentUser.fullname)} <span class="role-badge ${currentUser.role}">${roleLabel(currentUser.role)}</span>`;
+  document.getElementById('userName').textContent = escapeHtml(currentUser.fullname);
+  const roleBadge = document.getElementById('roleBadge');
+  roleBadge.textContent = roleLabel(currentUser.role);
+  roleBadge.className = `role-badge ${currentUser.role}`;
   const avatar = document.getElementById('userAvatar');
   avatar.textContent = escapeHtml(currentUser.fullname.charAt(0).toUpperCase());
   avatar.className = `user-avatar avatar-${currentUser.role}`;
