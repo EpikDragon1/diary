@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>📚 Электронный дневник</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 :root {
   --bg: #f1f5f9; --surface: #ffffff; --surface-2: #f8fafc; --border: #e2e8f0;
@@ -453,6 +456,11 @@ tr:hover { background: var(--surface-2); }
       </select>
     </div>
     
+    <!-- Статус подключения -->
+    <div style="padding: 0 15px; margin-bottom: 15px; text-align: center;">
+      <div id="onlineStatus" style="font-size: 11px; color: var(--text-muted);">🔴 Проверяю...</div>
+    </div>
+    
     <nav class="nav-menu" id="navMenu"></nav>
     <div class="sidebar-footer">
       <button class="btn btn-secondary" style="width:100%" onclick="logout()">🚪 Выйти</button>
@@ -531,14 +539,136 @@ function getDeviceId() {
 }
 
 // ============ ХРАНИЛИЩЕ ============
+// ============ FIREBASE CONFIG ============
+const firebaseConfig = {
+  apiKey: "AIzaSyB7dtxt9RZPYCrcCwV-pZNtivcM7MnGeXc",
+  authDomain: "diary-56.firebaseapp.com",
+  databaseURL: "https://diary-56-default-rtdb.firebaseio.com",
+  projectId: "diary-56",
+  storageBucket: "diary-56.firebasestorage.app",
+  messagingSenderId: "529980095621",
+  appId: "1:529980095621:web:b5599c1e05162cfd193dec"
+};
+
+// Инициализация Firebase
+let firebaseApp, firebaseDB;
+let isOnline = true;
+let firebaseInitialized = false;
+let usersCache = {}; // Кэш пользователей для быстрого доступа
+
+try {
+  firebaseApp = firebase.initializeApp(firebaseConfig);
+  firebaseDB = firebase.database();
+  firebaseInitialized = true;
+  console.log('✅ Firebase инициализирован');
+  
+  // Проверка онлайн-статуса
+  window.addEventListener('online', () => {
+    isOnline = true;
+    console.log('🟢 Подключение восстановлено');
+    syncFromFirebase();
+    updateOnlineStatus();
+  });
+  window.addEventListener('offline', () => {
+    isOnline = false;
+    console.log('🔴 Отключено от интернета');
+    updateOnlineStatus();
+  });
+} catch (e) {
+  console.error('❌ Firebase ошибка:', e);
+  firebaseInitialized = false;
+}
+
+function updateOnlineStatus() {
+  const el = document.getElementById('onlineStatus');
+  if (el) {
+    el.innerHTML = isOnline 
+      ? '<span style="color:var(--success)">🟢 Онлайн</span>' 
+      : '<span style="color:var(--warning)">🔴 Офлайн (данные из кэша)</span>';
+  }
+}
+
+// Загрузка из Firebase
+async function syncFromFirebase() {
+  if (!firebaseInitialized || !isOnline) return;
+  try {
+    const snapshot = await firebaseDB.ref('users').once('value');
+    const data = snapshot.val();
+    if (data) {
+      usersCache = data;
+      localStorage.setItem('diary_users', JSON.stringify(data));
+    }
+  } catch (e) {
+    console.error('Ошибка синхронизации:', e);
+  }
+}
+
+// Подписка на обновления в реальном времени
+function subscribeToUsers() {
+  if (!firebaseInitialized) return;
+  
+  firebaseDB.ref('users').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      usersCache = data;
+      localStorage.setItem('diary_users', JSON.stringify(data));
+      // Перерисовываем страницу если есть текущий пользователь
+      if (currentUser) {
+        const updatedUser = data[currentUser.username];
+        if (updatedUser) {
+          // Обновляем данные текущего пользователя без перезагрузки
+          const oldGrades = currentUser.grades;
+          const oldTasks = currentUser.tasks;
+          const oldSchedule = currentUser.schedule;
+          const oldParents = currentUser.parents;
+          
+          currentUser.fullname = updatedUser.fullname;
+          currentUser.role = updatedUser.role;
+          currentUser.class = updatedUser.class;
+          currentUser.grades = updatedUser.grades || oldGrades;
+          currentUser.tasks = updatedUser.tasks || oldTasks;
+          currentUser.schedule = updatedUser.schedule || oldSchedule;
+          currentUser.parents = updatedUser.parents || oldParents;
+          currentUser.students = updatedUser.students || [];
+          currentUser.children = updatedUser.children || [];
+          currentUser.subjects = updatedUser.subjects || [];
+          currentUser.isHomeroomTeacher = updatedUser.isHomeroomTeacher || false;
+          currentUser.homeroomClass = updatedUser.homeroomClass || null;
+          currentUser.school = updatedUser.school || '';
+          currentUser.settings = updatedUser.settings || {};
+          
+          renderPage(currentPage);
+        }
+      }
+    }
+  }, (error) => {
+    console.error('Ошибка подписки:', error);
+  });
+}
+
 const DB = {
   getUsers() { 
+    // Сначала пытаемся из Firebase кэша
+    if (Object.keys(usersCache).length > 0) return usersCache;
+    // fallback на localStorage
     try { return JSON.parse(localStorage.getItem('diary_users') || '{}'); } 
     catch (e) { console.error('Ошибка чтения localStorage:', e); return {}; }
   },
-  saveUsers(u) { 
+  async saveUsers(u) { 
+    // Сохраняем в localStorage сразу
     try { localStorage.setItem('diary_users', JSON.stringify(u)); } 
-    catch (e) { console.error('Ошибка записи localStorage:', e); toast('❌ Ошибка сохранения данных', 'error'); }
+    catch (e) { console.error('Ошибка записи localStorage:', e); }
+    
+    // Сохраняем в Firebase если онлайн
+    if (firebaseInitialized && isOnline) {
+      try {
+        await firebaseDB.ref('users').set(u);
+        usersCache = u; // Обновляем кэш
+      } catch (e) {
+        console.error('Ошибка записи Firebase:', e);
+        toast('⚠️ Ошибка синхронизации с облаком', 'warning');
+      }
+    }
   },
   getCurrent() { return localStorage.getItem('diary_current'); },
   setCurrent(u) { localStorage.setItem('diary_current', u); },
@@ -680,6 +810,9 @@ function startSession() {
   buildNavigation();
   const firstPage = getFirstPage();
   showPage(firstPage);
+  
+  // Обновляем статус подключения
+  updateOnlineStatus();
 }
 
 function roleLabel(role) {
@@ -3546,7 +3679,8 @@ function renderHelp() {
       <h3>🔐 Безопасность</h3>
       <ul>
         <li>Пароли хранятся в виде <b>SHA-256 хешей</b> с индивидуальной солью</li>
-        <li>Данные хранятся <b>локально</b> в вашем браузере (localStorage)</li>
+        <li>Данные хранятся <b>в облаке</b> (Firebase) и <b>локально</b> (localStorage)</li>
+        <li>Данные <b>синхронизируются</b> между устройствами в реальном времени</li>
         <li>Администратор привязан к устройству через уникальный DeviceID</li>
         <li>Каждая роль имеет строго ограниченные права доступа</li>
       </ul>
@@ -4146,9 +4280,14 @@ function initAuthScreen() {
 }
 
 // Запуск при загрузке страницы
-(function() {
+(async function() {
   document.getElementById('authScreen').style.display = 'flex';
   initAuthScreen();
+  
+  // Сначала загружаем из Firebase если онлайн
+  if (firebaseInitialized && isOnline) {
+    await syncFromFirebase();
+  }
   
   const saved = DB.getCurrent();
   if (saved) {
@@ -4159,12 +4298,20 @@ function initAuthScreen() {
     }
   }
   
+  // Подписываемся на обновления в реальном времени
+  if (firebaseInitialized) {
+    subscribeToUsers();
+  }
+  
   const loginPassEl = document.getElementById('loginPassword');
   if (loginPassEl) {
     loginPassEl.addEventListener('keypress', e => {
       if (e.key === 'Enter') login();
     });
   }
+  
+  // Обновляем статус подключения
+  setTimeout(updateOnlineStatus, 1000);
 })();
 </script>
 
