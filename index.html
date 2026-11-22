@@ -1675,20 +1675,19 @@ function renderHomeroomClass() {
 function openAddStudentModal() {
   openModal(`
     <div class="modal-header">
-      <h3>Добавить ученика в класс ${currentUser.homeroomClass}</h3>
+      <h3>➕ Добавить ученика в класс ${currentUser.homeroomClass}</h3>
       <button class="close-btn" onclick="closeModal()">×</button>
     </div>
     <div class="info-banner success">
       🏫 Вы — классный руководитель ${currentUser.homeroomClass}. Ученик будет автоматически добавлен в ваш класс.
     </div>
-    <div class="info-banner info">ℹ️ Ученик должен быть зарегистрирован в системе</div>
     <div class="form-group">
-      <label>Логин ученика</label>
-      <input type="text" id="studentUsername" placeholder="username">
+      <label>Полное имя (Имя Фамилия Отчество)</label>
+      <input type="text" id="addStudentFullname" placeholder="Иванов Иван Иванович">
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-      <button class="btn btn-primary" onclick="addStudent()">Добавить</button>
+      <button class="btn btn-primary" onclick="addStudent()">➕ Добавить</button>
     </div>
   `);
 }
@@ -1699,43 +1698,53 @@ async function addStudent() {
     return toast('❌ Только классный руководитель может добавлять учеников в класс', 'error');
   }
   
-  const username = document.getElementById('studentUsername').value.trim();
+  const fullname = document.getElementById('addStudentFullname').value.trim();
+  if (!fullname) return toast('Введите полное имя ученика', 'error');
+  
+  const parts = fullname.split(/\s+/).filter(p => p.length > 0);
+  if (parts.length < 2) return toast('Имя и фамилия обязательны', 'error');
+  
   const users = DB.getUsers();
   
-  if (!users[username]) return toast('Пользователь не найден', 'error');
-  if (users[username].role !== 'student') return toast('Это не ученик', 'error');
-  if (currentUser.students.includes(username)) return toast('Ученик уже добавлен', 'error');
+  // Генерируем логин из фамилии
+  const lastName = parts[0].toLowerCase();
+  const firstName = parts[1];
+  const initial = firstName.charAt(0).toUpperCase();
+  let username = lastName + initial;
+  
+  // Уникальный логин
+  let baseUsername = username;
+  let counter = 1;
+  while (users[username]) {
+    username = baseUsername + counter;
+    counter++;
+  }
   
   // Генерируем пароль для ученика
   const randomPass = generateStrongPassword(12);
   const salt = generateSalt();
   const hash = await hashPassword(salt + randomPass);
   
-  // Если ученик уже существует — обновляем его пароль, иначе создаём новый
-  if (users[username]) {
-    users[username].hash = hash;
-    users[username].salt = salt;
-    if (!users[username].settings) users[username].settings = {};
-    users[username].settings.tempPassword = randomPass;
-  } else {
-    // Создаём нового ученика
-    users[username] = {
-      username,
-      fullname: username, // Заполним позже
-      salt, hash,
-      role: 'student',
-      schoolId: getCurrentSchoolId(),
-      class: currentUser.homeroomClass,
-      grades: {},
-      tasks: [],
-      schedule: {},
-      parents: [],
-      created: Date.now(),
-      settings: { theme: 'light', tempPassword: randomPass }
-    };
-  }
+  // Создаём нового ученика
+  users[username] = {
+    username,
+    fullname,
+    salt, hash,
+    role: 'student',
+    schoolId: getCurrentSchoolId(),
+    class: currentUser.homeroomClass,
+    grades: {},
+    tasks: [],
+    schedule: {},
+    parents: [],
+    created: Date.now(),
+    settings: { theme: 'light', tempPassword: randomPass }
+  };
   
-  currentUser.students.push(username);
+  // Добавляем в список классного руководителя
+  if (!currentUser.students.includes(username)) {
+    currentUser.students.push(username);
+  }
   
   // Автоматически устанавливаем класс и привязку к классному руководителю
   users[username].class = currentUser.homeroomClass;
@@ -1745,7 +1754,7 @@ async function addStudent() {
   DB.saveUsers(users);
   closeModal();
   renderPage('students');
-  toast('✅ Ученик добавлен в класс ' + currentUser.homeroomClass);
+  toast('✅ Ученик ' + fullname + ' добавлен в класс ' + currentUser.homeroomClass);
 }
 
 // ============ УЧИТЕЛЬ: ИМПОРТ УЧЕНИКОВ ============
@@ -1754,6 +1763,9 @@ function openImportStudentsModal() {
   if (!currentUser.isHomeroomTeacher) {
     return toast('❌ Только классный руководитель может импортировать учеников', 'error');
   }
+  
+  // Сброс
+  window._importParsedStudents = [];
   
   openModal(`
     <div class="modal-header">
@@ -1778,9 +1790,6 @@ function openImportStudentsModal() {
       <button class="btn btn-primary" onclick="processImportStudents()" id="btnImportStudents" disabled>📥 Импортировать</button>
     </div>
   `);
-  
-  // Сброс
-  window._importParsedStudents = [];
   
   const fileInput = document.getElementById('importStudentsFile');
   fileInput.onchange = function() {
@@ -3782,25 +3791,22 @@ function renderAdminClassLetters() {
       ℹ️ <div><b>Управление буквами для классов.</b><br>Стандартные буквы: А, Б, В, Г. Кастомные буквы можно добавлять сюда.<br>Все классы (${classCount} шт.): <b>${generateClassOptions().join(', ')}</b></div>
     </div>
     
-      <div class="table-wrapper">
-        <table>
-          <thead><tr><th>Имя</th><th>Предметы</th><th>Классы</th><th>Учеников</th><th>Действия</th></tr></thead>
-          <tbody>
-            ${teachers.map(t => `
-              <tr>
-                <td><b>${escapeHtml(t.fullname)}</b><br><small style="color:var(--text-muted)">@${escapeHtml(t.username)}</small></td>
-                <td>${(t.subjects || []).map(escapeHtml).join(', ') || '—'}</td>
-                <td>${(t.classes || []).length > 0 ? (t.classes || []).map(escapeHtml).join(', ') : '—'}</td>
-                <td>${(t.students || []).length}</td>
-                <td>
-                  <button class="btn btn-secondary btn-sm" onclick="editTeacher('${escapeHtml(t.username)}')">✏️ Изменить</button>
-                  <button class="btn btn-danger btn-sm" onclick="deleteTeacher('${escapeHtml(t.username)}')">🗑️ Удалить</button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+    <div class="table-wrapper">
+      <div class="table-header"><h3>Доступные буквы</h3></div>
+      <div style="padding:15px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:15px">
+          ${allLetters.map(l => `<span style="background:var(--primary);color:white;padding:8px 16px;border-radius:8px;font-size:16px;font-weight:600">${l}</span>`).join('')}
+        </div>
+        ${customLetters.length > 0 ? `
+          <div style="margin-top:15px">
+            <h4 style="margin-bottom:8px;font-size:14px">Кастомные буквы (можно удалить):</h4>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${customLetters.map(l => `<span style="background:var(--warning);color:white;padding:8px 16px;border-radius:8px;font-size:16px;font-weight:600;display:inline-flex;align-items:center;gap:8px">${l} <span style="cursor:pointer;font-weight:bold" onclick="deleteCustomClassLetter('${l}')">×</span></span>`).join('')}
+            </div>
+          </div>
+        ` : ''}
       </div>
+    </div>
     
     <div class="info-banner warn" style="margin-top:15px">
       ⚠️ <div><b>Внимание!</b><br>Добавление новой буквы создаёт новые классы (например, 1Д, 2Д, ... 11Д).<br>Убедитесь, что новая буква не дублирует существующие.</div>
@@ -4021,10 +4027,8 @@ function renderHelp() {
     <div class="help-section">
       <h3>🔐 Безопасность</h3>
       <ul>
-        <li>Пароли хранятся в виде <b>SHA-256 хешей</b> с индивидуальной солью</li>
         <li>Данные хранятся <b>в облаке</b> (Firebase) и <b>локально</b> (localStorage)</li>
         <li>Данные <b>синхронизируются</b> между устройствами в реальном времени</li>
-        <li>Администратор привязан к устройству через уникальный DeviceID</li>
         <li>Каждая роль имеет строго ограниченные права доступа</li>
       </ul>
     </div>
@@ -4096,7 +4100,6 @@ function renderSettings() {
       <div class="setting-row">
         <div>
           <div style="font-weight:600">Ваша роль</div>
-          <div style="font-size:12px;color:var(--text-muted)">${roleLabel(currentUser.role)}</div>
         </div>
         <span class="role-badge ${currentUser.role}" style="font-size:12px;padding:4px 10px">${roleLabel(currentUser.role)}</span>
       </div>
@@ -4266,7 +4269,6 @@ function openGradeModalForStudent(studentUsername) {
         <option value="4">4 (Хорошо)</option>
         <option value="3">3 (Удовл.)</option>
         <option value="2">2 (Неудовл.)</option>
-        <option value="1">1</option>
       </select>
     </div>
     <div class="form-group">
@@ -4308,7 +4310,7 @@ function saveTeacherGrade() {
     return toast('Нет доступа к этому ученику', 'error');
   }
   
-  if (value < 1 || value > 5) return toast('Оценка должна быть от 1 до 5', 'error');
+  if (value < 2 || value > 5) return toast('Оценка должна быть от 2 до 5', 'error');
   
   // Проверка: обычный учитель может ставить только по своим предметам
   const isHomeroom = currentUser.isHomeroomTeacher;
@@ -4799,14 +4801,15 @@ async function createDefaultAdmin() {
   document.getElementById('authScreen').style.display = 'flex';
   initAuthScreen();
   
-  // Сначала загружаем из Firebase если онлайн
+  // Сначала создаем админа по умолчанию (ДО загрузки из Firebase)
+  await createDefaultAdmin();
+  
+  // Потом загружаем из Firebase если онлайн
   if (firebaseInitialized && isOnline) {
     await syncFromFirebase();
   }
   
-  // Создаем админа по умолчанию
-  await createDefaultAdmin();
-  
+  // Обновляем currentUser если есть сохраненная сессия
   const saved = DB.getCurrent();
   if (saved) {
     const users = DB.getUsers();
