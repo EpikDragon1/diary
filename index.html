@@ -103,6 +103,7 @@ body {
 .avatar-teacher { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
 .avatar-parent { background: linear-gradient(135deg, #ec4899, #f472b6); }
 .avatar-admin { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+.avatar-director { background: linear-gradient(135deg, #10b981, #34d399); }
 .user-name { font-weight: 600; font-size: 13px; }
 .role-badge {
   display: inline-block; padding: 2px 8px; border-radius: 8px;
@@ -112,6 +113,7 @@ body {
 .role-badge.teacher { background: #ede9fe; color: #6d28d9; }
 .role-badge.parent { background: #fce7f3; color: #be185d; }
 .role-badge.admin { background: #fef3c7; color: #92400e; }
+.role-badge.director { background: #d1fae5; color: #065f46; }
 .nav-menu { flex: 1; padding: 0 8px; overflow-y: auto; }
 .nav-item {
   padding: 10px 12px; border-radius: 8px; cursor: pointer;
@@ -1336,40 +1338,64 @@ function showLessonDetails(day, idx) {
 // ============ УЧИТЕЛЬ: РАСПИСАНИЕ ============
 function renderTeacherSchedule() {
   const schoolId = getCurrentSchoolId();
-  const teacherUsername = currentUser.username;
-  const teacherSchedule = getTeacherSchedule(schoolId, teacherUsername);
+  const teacherName = currentUser.fullname;
   const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
+  const users = DB.getUsers();
+  const schools = getSchools();
+  const currentSchoolName = schools[schoolId]?.name || 'Учебное заведение';
   
-  // Если есть расписание учителя — показываем его
-  if (teacherSchedule) {
-    return `
-      <div class="page-header"><h1>📅 Моё расписание</h1></div>
-      <div class="info-banner info">ℹ️ Расписание уроков, которые вы ведёте</div>
-      <div class="schedule-grid">
-        ${days.map(day => {
-          const lessons = teacherSchedule?.[day] || [];
-          return `<div class="day-card">
-            <h3>${day}</h3>
-            ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
-              lessons.map((l, idx) => `
-                <div class="lesson-item">
-                  <div class="lesson-name">${escapeHtml(l.subject)}</div>
-                  <div class="lesson-time">${escapeHtml(l.time || '')}</div>
-                  <div class="lesson-room">🏫 ${escapeHtml(l.class || '')}</div>
-                  ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
-                </div>
-              `).join('')
-            }
-          </div>`;
-        }).join('')}
-      </div>
-    `;
-  }
+  // Собираем расписание учителя из всех классов школы
+  const teacherSchedule = {};
+  days.forEach(day => { teacherSchedule[day] = []; });
+  
+  // Получаем все классы школы
+  const allClasses = generateClassOptions();
+  allClasses.forEach(cls => {
+    const classSchedule = getClassSchedule(schoolId, cls);
+    if (classSchedule) {
+      days.forEach(day => {
+        const lessons = classSchedule[day] || [];
+        lessons.forEach(lesson => {
+          // Если учитель указан в расписании — добавляем в его расписание
+          if (lesson.teacher === teacherName) {
+            teacherSchedule[day].push({
+              subject: lesson.subject,
+              class: cls,
+              room: lesson.room,
+              time: ''
+            });
+          }
+        });
+      });
+    }
+  });
+  
+  // Сортируем по дням и номерам
+  days.forEach(day => {
+    teacherSchedule[day].sort((a, b) => a.class.localeCompare(b.class));
+  });
   
   return `
     <div class="page-header"><h1>📅 Моё расписание</h1></div>
-    <div class="info-banner info">ℹ️ Расписание появится, когда директор добавит вас в расписание классов</div>
-    <div class="empty-state" style="padding:40px"><div class="icon">📅</div><p>Расписание пока не заполнено</p></div>
+    <div class="info-banner info">ℹ️ Расписание уроков, которые вы ведёте в школе "${escapeHtml(currentSchoolName)}"</div>
+    <div class="schedule-grid">
+      ${days.map(day => {
+        const lessons = teacherSchedule[day] || [];
+        return `<div class="day-card">
+          <h3>${day}</h3>
+          ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
+            lessons.map((l, idx) => `
+              <div class="lesson-item">
+                <div class="lesson-name">${escapeHtml(l.subject)}</div>
+                <div class="lesson-time">${escapeHtml(l.time || '')}</div>
+                <div class="lesson-room">🏫 ${escapeHtml(l.class)}</div>
+                ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+              </div>
+            `).join('')
+          }
+        </div>`;
+      }).join('')}
+    </div>
   `;
 }
 
@@ -4339,9 +4365,9 @@ function openAddLessonTimesModal() {
       ${[1,2,3,4,5,6,7,8].map(n => `
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
           <label style="width:80px;font-weight:600">${n}-й урок</label>
-          <input type="time" id="lessonStart${n}" value="08:00" style="flex:1">
+          <input type="time" id="lessonStart${n}" value="" style="flex:1">
           <span>—</span>
-          <input type="time" id="lessonEnd${n}" value="08:45" style="flex:1">
+          <input type="time" id="lessonEnd${n}" value="" style="flex:1">
         </div>
       `).join('')}
     </div>
@@ -4445,7 +4471,9 @@ function renderDirectorSchedule() {
 function openClassScheduleModal(className) {
   const schoolId = getCurrentSchoolId();
   const schedule = getClassSchedule(schoolId, className);
-  const times = getLessonTimes(schoolId);
+  const users = DB.getUsers();
+  const teachers = Object.values(users).filter(u => u.role === 'teacher' && u.schoolId === schoolId);
+  const allSubjects = ['Математика', 'Русский язык', 'Литература', 'История', 'Обществознание', 'Физика', 'Химия', 'Биология', 'География', 'Информатика', 'Английский язык', 'Физкультура', 'Музыка', 'ИЗО', 'Технология', 'ОБЖ'];
   const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
   
   openModal(`
@@ -4454,7 +4482,7 @@ function openClassScheduleModal(className) {
       <button class="close-btn" onclick="closeModal()">×</button>
     </div>
     <div class="info-banner info">ℹ️ Заполните расписание для каждого дня недели</div>
-    <div style="max-height:400px;overflow-y:auto">
+    <div style="max-height:500px;overflow-y:auto">
       ${days.map(day => `
         <div style="margin-bottom:15px">
           <h4 style="margin-bottom:8px">${day}</h4>
@@ -4462,8 +4490,14 @@ function openClassScheduleModal(className) {
             ${(schedule?.[day] || []).map((lesson, idx) => `
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
                 <span style="background:var(--primary);color:white;padding:2px 8px;border-radius:6px;font-size:12px">${idx + 1}</span>
-                <input type="text" class="schedule-subject" value="${escapeHtml(lesson.subject)}" placeholder="Предмет" style="flex:1">
-                <input type="text" class="schedule-teacher" value="${escapeHtml(lesson.teacher || '')}" placeholder="Учитель" style="flex:1">
+                <select class="schedule-subject" style="flex:1">
+                  <option value="">Предмет</option>
+                  ${allSubjects.map(s => `<option value="${s}" ${s === lesson.subject ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+                <select class="schedule-teacher" style="flex:1">
+                  <option value="">Учитель</option>
+                  ${teachers.map(t => `<option value="${escapeHtml(t.fullname)}" ${t.fullname === lesson.teacher ? 'selected' : ''}>${escapeHtml(t.fullname)}</option>`).join('')}
+                </select>
                 <input type="text" class="schedule-room" value="${escapeHtml(lesson.room || '')}" placeholder="Каб." style="width:60px">
                 <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">×</button>
               </div>
@@ -4481,6 +4515,10 @@ function openClassScheduleModal(className) {
 }
 
 function addLessonToDay(day) {
+  const schoolId = getCurrentSchoolId();
+  const users = DB.getUsers();
+  const teachers = Object.values(users).filter(u => u.role === 'teacher' && u.schoolId === schoolId);
+  const allSubjects = ['Математика', 'Русский язык', 'Литература', 'История', 'Обществознание', 'Физика', 'Химия', 'Биология', 'География', 'Информатика', 'Английский язык', 'Физкультура', 'Музыка', 'ИЗО', 'Технология', 'ОБЖ'];
   const container = document.getElementById(`schedule_${day}`);
   const lessonCount = container.querySelectorAll('[class*="schedule-subject"]').length + 1;
   
@@ -4488,8 +4526,14 @@ function addLessonToDay(day) {
   div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
   div.innerHTML = `
     <span style="background:var(--primary);color:white;padding:2px 8px;border-radius:6px;font-size:12px">${lessonCount}</span>
-    <input type="text" class="schedule-subject" placeholder="Предмет" style="flex:1">
-    <input type="text" class="schedule-teacher" placeholder="Учитель" style="flex:1">
+    <select class="schedule-subject" style="flex:1">
+      <option value="">Предмет</option>
+      ${allSubjects.map(s => `<option value="${s}">${s}</option>`).join('')}
+    </select>
+    <select class="schedule-teacher" style="flex:1">
+      <option value="">Учитель</option>
+      ${teachers.map(t => `<option value="${escapeHtml(t.fullname)}">${escapeHtml(t.fullname)}</option>`).join('')}
+    </select>
     <input type="text" class="schedule-room" placeholder="Каб." style="width:60px">
     <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">×</button>
   `;
@@ -4648,6 +4692,21 @@ function renderHelp() {
       <p><b>DeviceID этого устройства:</b></p>
       <div class="device-info">${deviceId}</div>
       <p style="margin-top:10px">Если нужно войти с другого устройства — сбросьте привязку в настройках.</p>
+    `;
+  } else if (role === 'director') {
+    roleContent = `
+      <h3>👔 Возможности директора</h3>
+      <ul>
+        <li>Управление учителями (создание, удаление)</li>
+        <li>Управление учениками (создание, удаление)</li>
+        <li>Назначение классных руководителей</li>
+        <li>Настройка времени уроков (начало, конец каждого урока)</li>
+        <li>Создание и редактирование расписания для каждого класса</li>
+        <li>Управление буквами классов (добавление, удаление)</li>
+        <li>Просмотр полной статистики школы</li>
+        <li>Просмотр рейтинга учеников, классов и учителей</li>
+      </ul>
+      <p><b>❌ Нельзя:</b> создавать и удалять школы (это делает администратор).</p>
     `;
   }
   
