@@ -2176,6 +2176,19 @@ function renderTeacherGrades() {
     </div>
   `;
 }
+
+// ============ УЧИТЕЛЬ: ПЕЧАТЬ ПАРОЛЕЙ ============
+function printPasswords() {
+  if (!currentUser.isHomeroomTeacher) return;
+  if (!currentUser.homeroomClass) return toast('Выберите класс', 'warning');
+  
+  const users = DB.getUsers();
+  const currentSchoolId = getCurrentSchoolId();
+  const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === currentUser.homeroomClass && u.schoolId === currentSchoolId);
+  
+  if (classStudents.length === 0) {
+    return toast('В классе нет учеников', 'warning');
+  }
   
   // Сортируем по фамилии
   classStudents.sort((a, b) => a.fullname.localeCompare(b.fullname, 'ru'));
