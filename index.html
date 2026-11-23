@@ -659,7 +659,7 @@ function subscribeToUsers() {
   
   firebaseDB.ref('users').on('value', (snapshot) => {
     const data = snapshot.val();
-    if (data) {
+    if (data && Object.keys(data).length > 0) {
       usersCache = data;
       localStorage.setItem('diary_users', JSON.stringify(data));
       // Перерисовываем страницу если есть текущий пользователь
@@ -712,7 +712,7 @@ const DB = {
     // Сохраняем в Firebase если онлайн
     if (firebaseInitialized && isOnline) {
       try {
-        await firebaseDB.ref('users').update(u);
+        await firebaseDB.ref('users').set(u);
         usersCache = u; // Обновляем кэш
       } catch (e) {
         console.error('Ошибка записи Firebase:', e);
@@ -855,6 +855,11 @@ async function login() {
   if (!user) {
     recordLoginAttempt(username);
     return showError('Неверный логин или пароль');
+  }
+  
+  // Администраторы могут входить ТОЛЬКО через "Вход для администраторов"
+  if (user.role === 'admin') {
+    return showError('Администраторы входят через "Вход для администраторов"');
   }
   
   const hash = await hashPassword(user.salt + pass);
