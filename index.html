@@ -1117,11 +1117,6 @@ function buildNavigation() {
     items = [
       { id: 'admin-dashboard', icon: '🏠', label: 'Панель управления' },
       { id: 'admin-schools', icon: '🏫', label: 'Школы' },
-      { id: 'admin-teachers', icon: '👨‍🏫', label: 'Учителя' },
-      { id: 'admin-students', icon: '👨‍🎓', label: 'Ученики' },
-      { id: 'admin-class-letters', icon: '🔤', label: 'Буквы классов' },
-      { id: 'admin-stats', icon: '📊', label: 'Статистика школы' },
-      { id: 'admin-rating', icon: '🏆', label: 'Рейтинг' },
       { id: 'help', icon: '❓', label: 'Справка' },
       { id: 'settings', icon: '⚙️', label: 'Настройки' }
     ];
@@ -1200,11 +1195,6 @@ function renderPage(pageId) {
   } else if (r === 'admin') {
     if (pageId === 'admin-dashboard') main.innerHTML = renderAdminDashboard();
     else if (pageId === 'admin-schools') main.innerHTML = renderAdminSchools();
-    else if (pageId === 'admin-teachers') main.innerHTML = renderAdminTeachers();
-    else if (pageId === 'admin-students') main.innerHTML = renderAdminStudents();
-    else if (pageId === 'admin-class-letters') main.innerHTML = renderAdminClassLetters();
-    else if (pageId === 'admin-stats') main.innerHTML = renderAdminStats();
-    else if (pageId === 'admin-rating') main.innerHTML = renderAdminRating();
     else if (pageId === 'help') main.innerHTML = renderHelp();
     else if (pageId === 'settings') main.innerHTML = renderSettings();
   } else if (r === 'director') {
@@ -3109,13 +3099,6 @@ function renderAdminDashboard() {
   // Фильтруем пользователей по текущей школе
   const schoolUsers = Object.values(users).filter(u => u.schoolId === currentSchoolId);
   const all = schoolUsers;
-  const students = all.filter(u => u.role === 'student');
-  const teachers = all.filter(u => u.role === 'teacher');
-  const parents = all.filter(u => u.role === 'parent');
-  
-  const allGrades = students.flatMap(s => Object.values(s.grades || {}).flat());
-  const overallAvg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
-  const schoolName = getCurrentSchoolName();
   const directors = all.filter(u => u.role === 'director');
   
   return `
@@ -3125,28 +3108,25 @@ function renderAdminDashboard() {
     </div>
     
     <div class="info-banner success">
-      ${currentUser.role === 'director' ? '👔' : '👑'} <div><b>Вы — ${currentUser.role === 'director' ? 'директор школы' : 'администратор системы'}.<br>Управление учителями, статистика и рейтинг школы доступны в меню слева.</b></div>
+      ${currentUser.role === 'director' ? '👔' : '👑'} <div><b>Вы — ${currentUser.role === 'director' ? 'директор школы' : 'администратор системы'}.<br>${currentUser.role === 'director' ? 'Управление учителями, учениками и статистикой школы доступно в меню слева.' : 'Управление школами доступно в меню слева.'}</b></div>
     </div>
     
     <div class="cards-grid">
-      <div class="card"><div class="card-icon blue">👨‍🎓</div><div class="card-value">${students.length}</div><div class="card-label">Учеников</div></div>
-      <div class="card"><div class="card-icon purple">👨‍🏫</div><div class="card-value">${teachers.length}</div><div class="card-label">Учителей</div></div>
-      <div class="card"><div class="card-icon pink">👨‍👩‍👧</div><div class="card-value">${parents.length}</div><div class="card-label">Родителей</div></div>
-      <div class="card"><div class="card-icon green">📊</div><div class="card-value">${overallAvg}</div><div class="card-label">Средний балл школы</div></div>
-      <div class="card"><div class="card-icon orange">⭐</div><div class="card-value">${allGrades.filter(g => g.value === 5).length}</div><div class="card-label">Пятёрок всего</div></div>
-      <div class="card"><div class="card-icon red">📝</div><div class="card-value">${students.reduce((s,x) => s + (x.tasks || []).filter(t => !t.done).length, 0)}</div><div class="card-label">Активных заданий</div></div>
+      <div class="card"><div class="card-icon blue">🏫</div><div class="card-value">${Object.keys(getSchools()).length}</div><div class="card-label">Школ</div></div>
       <div class="card"><div class="card-icon yellow">👔</div><div class="card-value">${directors.length}</div><div class="card-label">Директоров</div></div>
     </div>
     
+    ${currentUser.role === 'director' ? `
     <div class="table-wrapper">
       <div class="table-header"><h3>🏆 Топ-5 учеников школы</h3></div>
-      ${renderTopStudents(students, 5)}
+      ${renderTopStudents(all.filter(u => u.role === 'student'), 5)}
     </div>
     
     <div class="table-wrapper">
       <div class="table-header"><h3>📚 Топ-5 предметов</h3></div>
-      ${renderTopSubjects(students, 5)}
+      ${renderTopSubjects(all.filter(u => u.role === 'student'), 5)}
     </div>
+    ` : ''}
     
     <div class="table-wrapper" style="margin-top:20px">
       <div class="table-header">
@@ -4656,15 +4636,12 @@ function renderHelp() {
     roleContent = `
       <h3>👑 Возможности администратора</h3>
       <ul>
-        <li>Создание и удаление учителей</li>
-        <li>Создание учеников и родителей</li>
-        <li>Просмотр всех учеников и учителей системы</li>
-        <li>Общая статистика школы</li>
-        <li>Рейтинг учеников, классов и учителей</li>
+        <li>Управление школами (создание, удаление)</li>
+        <li>Назначение директоров для школ</li>
+        <li>Просмотр списка школ</li>
         <li>Управление устройством (привязка админа)</li>
       </ul>
-      <p><b>❌ Нельзя:</b> ставить оценки, добавлять задания (это делают учителя).</p>
-      <p style="margin-top:8px"><b>ℹ️ Регистрация учеников и родителей через сайт закрыта.</b> Все аккаунты создаются учителями или администратором.</p>
+      <p><b>❌ Нельзя:</b> управлять учителями, учениками, ставить оценки (это делают директора и учителя).</p>
       
       <h3 style="margin-top:20px">🔒 Привязка к устройству</h3>
       <p>Администратор привязан к конкретному устройству. Это защищает систему от несанкционированного доступа.</p>
