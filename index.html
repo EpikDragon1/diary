@@ -1125,7 +1125,6 @@ function buildNavigation() {
   } else if (currentUser.role === 'director') {
     items = [
       { id: 'admin-dashboard', icon: '🏠', label: 'Панель управления' },
-      { id: 'admin-schools', icon: '🏫', label: 'Школы' },
       { id: 'admin-teachers', icon: '👨‍🏫', label: 'Учителя' },
       { id: 'admin-students', icon: '👨‍🎓', label: 'Ученики' },
       { id: 'admin-class-letters', icon: '🔤', label: 'Буквы классов' },
@@ -1201,7 +1200,6 @@ function renderPage(pageId) {
     else if (pageId === 'settings') main.innerHTML = renderSettings();
   } else if (r === 'director') {
     if (pageId === 'admin-dashboard') main.innerHTML = renderAdminDashboard();
-    else if (pageId === 'admin-schools') main.innerHTML = renderAdminSchools();
     else if (pageId === 'admin-teachers') main.innerHTML = renderAdminTeachers();
     else if (pageId === 'admin-students') main.innerHTML = renderAdminStudents();
     else if (pageId === 'admin-class-letters') main.innerHTML = renderAdminClassLetters();
