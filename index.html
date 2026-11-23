@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://www.gstatic.com https://*.firebaseio.com; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://*.firebaseio.com https://www.googleapis.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://www.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://*.firebaseio.com https://*.firebaseapp.com https://www.googleapis.com; child-src 'none';">
 <title>📚 Электронный дневник</title>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -709,10 +709,14 @@ const DB = {
     try { localStorage.setItem('diary_users', JSON.stringify(u)); } 
     catch (e) { console.error('Ошибка записи localStorage:', e); }
     
-    // Сохраняем в Firebase если онлайн
+    // Сохраняем в Firebase каждого пользователя отдельно (чтобы не перезаписывать других)
     if (firebaseInitialized && isOnline) {
       try {
-        await firebaseDB.ref('users').set(u);
+        const batch = [];
+        for (const [username, user] of Object.entries(u)) {
+          batch.push(firebaseDB.ref('users/' + username).set(user));
+        }
+        await Promise.all(batch);
         usersCache = u; // Обновляем кэш
       } catch (e) {
         console.error('Ошибка записи Firebase:', e);
@@ -4194,6 +4198,12 @@ function deleteAccount() {
   const users = DB.getUsers();
   delete users[currentUser.username];
   DB.saveUsers(users);
+  
+  // Удаляем из Firebase
+  if (firebaseInitialized && isOnline) {
+    firebaseDB.ref('users/' + currentUser.username).remove();
+  }
+  
   logout();
   toast('🗑️ Аккаунт удалён');
 }
