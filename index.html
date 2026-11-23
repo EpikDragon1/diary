@@ -820,6 +820,80 @@ function generateClassOptions(minClass = 1, maxClass = 11) {
   return options;
 }
 
+// ============ ВРЕМЯ УРОКОВ (настраивается директором) ============
+function getLessonTimes(schoolId) {
+  try {
+    const data = JSON.parse(localStorage.getItem('diary_lessonTimes') || '{}');
+    return data[schoolId] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveLessonTimes(schoolId, times) {
+  try {
+    const data = JSON.parse(localStorage.getItem('diary_lessonTimes') || '{}');
+    data[schoolId] = times;
+    localStorage.setItem('diary_lessonTimes', JSON.stringify(data));
+  } catch (e) {
+    console.error('Ошибка записи времени уроков:', e);
+  }
+}
+
+// ============ РАСПИСАНИЕ КЛАССОВ ============
+function getClassSchedule(schoolId, className) {
+  try {
+    const data = JSON.parse(localStorage.getItem('diary_classSchedule') || '{}');
+    return data[schoolId]?.[className] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveClassSchedule(schoolId, className, schedule) {
+  try {
+    const data = JSON.parse(localStorage.getItem('diary_classSchedule') || '{}');
+    if (!data[schoolId]) data[schoolId] = {};
+    data[schoolId][className] = schedule;
+    localStorage.setItem('diary_classSchedule', JSON.stringify(data));
+  } catch (e) {
+    console.error('Ошибка записи расписания:', e);
+  }
+}
+
+function deleteClassSchedule(schoolId, className) {
+  try {
+    const data = JSON.parse(localStorage.getItem('diary_classSchedule') || '{}');
+    if (data[schoolId]) {
+      delete data[schoolId][className];
+      localStorage.setItem('diary_classSchedule', JSON.stringify(data));
+    }
+  } catch (e) {
+    console.error('Ошибка удаления расписания:', e);
+  }
+}
+
+// ============ РАСПИСАНИЕ УЧИТЕЛЯ ============
+function getTeacherSchedule(schoolId, teacherUsername) {
+  try {
+    const data = JSON.parse(localStorage.getItem('diary_teacherSchedule') || '{}');
+    return data[schoolId]?.[teacherUsername] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveTeacherSchedule(schoolId, teacherUsername, schedule) {
+  try {
+    const data = JSON.parse(localStorage.getItem('diary_teacherSchedule') || '{}');
+    if (!data[schoolId]) data[schoolId] = {};
+    data[schoolId][teacherUsername] = schedule;
+    localStorage.setItem('diary_teacherSchedule', JSON.stringify(data));
+  } catch (e) {
+    console.error('Ошибка записи расписания учителя:', e);
+  }
+}
+
 let currentUser = null;
 let currentViewStudent = null;
 let selectedRole = 'student';
@@ -1018,12 +1092,14 @@ function buildNavigation() {
       { id: 'teacher-grades', icon: '📊', label: 'Журнал оценок' },
       { id: 'teacher-tasks', icon: '📝', label: 'Задания' },
       { id: 'teacher-stats', icon: '📈', label: 'Статистика' },
+      { id: 'teacher-schedule', icon: '📅', label: 'Моё расписание' },
       { id: 'help', icon: '❓', label: 'Справка' },
       { id: 'settings', icon: '⚙️', label: 'Настройки' }
     ];
-    // Для классных руководителей — добавляем раздел "Класс"
+    // Для классных руководителей — добавляем раздел "Класс" и "Расписание класса"
     if (currentUser.isHomeroomTeacher) {
       items.splice(1, 0, { id: 'homeroom-class', icon: '🏫', label: `Класс ${currentUser.homeroomClass}` });
+      items.splice(2, 0, { id: 'homeroom-schedule', icon: '📅', label: `Расписание ${currentUser.homeroomClass}` });
     }
     // Для всех учителей — добавляем "Родители"
     items.push({ id: 'teacher-parents', icon: '👨‍👩‍👧', label: 'Родители' });
@@ -1055,6 +1131,9 @@ function buildNavigation() {
       { id: 'admin-schools', icon: '🏫', label: 'Школы' },
       { id: 'admin-teachers', icon: '👨‍🏫', label: 'Учителя' },
       { id: 'admin-students', icon: '👨‍🎓', label: 'Ученики' },
+      { id: 'admin-class-letters', icon: '🔤', label: 'Буквы классов' },
+      { id: 'director-lesson-times', icon: '⏰', label: 'Время уроков' },
+      { id: 'director-schedule', icon: '📅', label: 'Расписание' },
       { id: 'admin-stats', icon: '📊', label: 'Статистика школы' },
       { id: 'admin-rating', icon: '🏆', label: 'Рейтинг' },
       { id: 'help', icon: '❓', label: 'Справка' },
@@ -1102,10 +1181,12 @@ function renderPage(pageId) {
       main.innerHTML = renderTeacherStudents();
     }
     else if (pageId === 'homeroom-class') main.innerHTML = renderHomeroomClass();
+    else if (pageId === 'homeroom-schedule') main.innerHTML = renderHomeroomSchedule();
     else if (pageId === 'teacher-grades') main.innerHTML = renderTeacherGrades();
     else if (pageId === 'teacher-tasks') main.innerHTML = renderTeacherTasks();
     else if (pageId === 'teacher-stats') main.innerHTML = renderTeacherStats();
     else if (pageId === 'teacher-parents') main.innerHTML = renderTeacherParents();
+    else if (pageId === 'teacher-schedule') main.innerHTML = renderTeacherSchedule();
     else if (pageId === 'help') main.innerHTML = renderHelp();
     else if (pageId === 'settings') main.innerHTML = renderSettings();
   } else if (r === 'parent') {
@@ -1131,6 +1212,9 @@ function renderPage(pageId) {
     else if (pageId === 'admin-schools') main.innerHTML = renderAdminSchools();
     else if (pageId === 'admin-teachers') main.innerHTML = renderAdminTeachers();
     else if (pageId === 'admin-students') main.innerHTML = renderAdminStudents();
+    else if (pageId === 'admin-class-letters') main.innerHTML = renderAdminClassLetters();
+    else if (pageId === 'director-lesson-times') main.innerHTML = renderDirectorLessonTimes();
+    else if (pageId === 'director-schedule') main.innerHTML = renderDirectorSchedule();
     else if (pageId === 'admin-stats') main.innerHTML = renderAdminStats();
     else if (pageId === 'admin-rating') main.innerHTML = renderAdminRating();
     else if (pageId === 'help') main.innerHTML = renderHelp();
@@ -1211,25 +1295,91 @@ function renderStudentDashboard() {
 
 // ============ УЧЕНИК: РАСПИСАНИЕ ============
 function renderStudentSchedule() {
-  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+  const schoolId = getCurrentSchoolId();
+  const className = currentUser.class;
+  const schedule = getClassSchedule(schoolId, className);
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
+  
   return `
     <div class="page-header"><h1>📅 Расписание</h1></div>
-    <div class="info-banner info">ℹ️ Расписание доступно только для просмотра</div>
+    <div class="info-banner info">ℹ️ Расписание класса ${className} — доступно только для просмотра</div>
     <div class="schedule-grid">
       ${days.map(day => {
-        const lessons = currentUser.schedule[day] || [];
+        const lessons = schedule?.[day] || [];
         return `<div class="day-card">
           <h3>${day}</h3>
           ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
-            lessons.map(l => `<div class="lesson-item">
-              <div class="lesson-time">${l.time}</div>
-              <div class="lesson-name">${l.name}</div>
-              ${l.room ? `<div class="lesson-room">📍 Каб. ${l.room}</div>` : ''}
-            </div>`).join('')
+            lessons.map((l, idx) => `
+              <div class="lesson-item" onclick="showLessonDetails('${escapeHtml(day)}', ${idx})" style="cursor:pointer">
+                <div class="lesson-name">${escapeHtml(l.subject)}</div>
+                <div class="lesson-time">${escapeHtml(l.time || '')}</div>
+                ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+              </div>
+            `).join('')
           }
         </div>`;
       }).join('')}
     </div>
+  `;
+}
+
+function showLessonDetails(day, idx) {
+  const schoolId = getCurrentSchoolId();
+  const className = currentUser.class;
+  const schedule = getClassSchedule(schoolId, className);
+  const lesson = schedule?.[day]?.[idx];
+  if (!lesson) return;
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>📅 ${escapeHtml(day)} — Урок ${idx + 1}</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div style="padding:15px">
+      <div style="margin-bottom:10px"><b>Предмет:</b> ${escapeHtml(lesson.subject)}</div>
+      <div style="margin-bottom:10px"><b>Учитель:</b> ${escapeHtml(lesson.teacher || '—')}</div>
+      <div style="margin-bottom:10px"><b>Кабинет:</b> ${escapeHtml(lesson.room || '—')}</div>
+    </div>
+  `);
+}
+
+// ============ УЧИТЕЛЬ: РАСПИСАНИЕ ============
+function renderTeacherSchedule() {
+  const schoolId = getCurrentSchoolId();
+  const teacherUsername = currentUser.username;
+  const teacherSchedule = getTeacherSchedule(schoolId, teacherUsername);
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
+  
+  // Если есть расписание учителя — показываем его
+  if (teacherSchedule) {
+    return `
+      <div class="page-header"><h1>📅 Моё расписание</h1></div>
+      <div class="info-banner info">ℹ️ Расписание уроков, которые вы ведёте</div>
+      <div class="schedule-grid">
+        ${days.map(day => {
+          const lessons = teacherSchedule?.[day] || [];
+          return `<div class="day-card">
+            <h3>${day}</h3>
+            ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
+              lessons.map((l, idx) => `
+                <div class="lesson-item">
+                  <div class="lesson-name">${escapeHtml(l.subject)}</div>
+                  <div class="lesson-time">${escapeHtml(l.time || '')}</div>
+                  <div class="lesson-room">🏫 ${escapeHtml(l.class || '')}</div>
+                  ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+                </div>
+              `).join('')
+            }
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="page-header"><h1>📅 Моё расписание</h1></div>
+    <div class="info-banner info">ℹ️ Расписание появится, когда директор добавит вас в расписание классов</div>
+    <div class="empty-state" style="padding:40px"><div class="icon">📅</div><p>Расписание пока не заполнено</p></div>
   `;
 }
 
@@ -1671,6 +1821,38 @@ function renderHomeroomClass() {
           }).join('')}
         </div>`
       }
+    </div>
+  `;
+}
+
+// ============ КЛАССНЫЙ РУКОВОДИТЕЛЬ: РАСПИСАНИЕ КЛАССА ============
+function renderHomeroomSchedule() {
+  const schoolId = getCurrentSchoolId();
+  const className = currentUser.homeroomClass;
+  const schedule = getClassSchedule(schoolId, className);
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
+  
+  return `
+    <div class="page-header"><h1>📅 Расписание ${className}</h1></div>
+    <div class="info-banner info">ℹ️ Полное расписание вашего класса со временем уроков</div>
+    <div class="schedule-grid">
+      ${days.map(day => {
+        const lessons = schedule?.[day] || [];
+        return `<div class="day-card">
+          <h3>${day}</h3>
+          ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
+            lessons.map((l, idx) => `
+              <div class="lesson-item">
+                <div class="lesson-name">${escapeHtml(l.subject)}</div>
+                <div class="lesson-time">${escapeHtml(l.time || '')}</div>
+                <div class="lesson-room">🏫 ${escapeHtml(l.class || '')}</div>
+                ${l.teacher ? `<div class="lesson-room">👨‍🏫 ${escapeHtml(l.teacher)}</div>` : ''}
+                ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+              </div>
+            `).join('')
+          }
+        </div>`;
+      }).join('')}
     </div>
   `;
 }
@@ -2671,7 +2853,7 @@ function renderParentTasks() {
 function renderParentSchedule() {
   const users = DB.getUsers();
   const children = currentUser.children.map(u => users[u]).filter(Boolean);
-  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
   
   if (children.length === 0) {
     return `<div class="page-header"><h1>📅 Расписание</h1></div>
@@ -2682,25 +2864,55 @@ function renderParentSchedule() {
     <div class="page-header"><h1>📅 Расписание детей</h1></div>
     <div class="info-banner info">ℹ️ Только просмотр</div>
     
-    ${children.map(c => `
-      <h2 style="margin:20px 0 10px;font-size:18px">👨‍🎓 ${escapeHtml(c.fullname)}</h2>
-      <div class="schedule-grid">
-        ${days.map(day => {
-          const lessons = (c.schedule && c.schedule[day]) || [];
-          return `<div class="day-card">
-            <h3>${escapeHtml(day)}</h3>
-            ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:10px 0">Нет уроков</p>' :
-              lessons.map(l => `<div class="lesson-item">
-                <div class="lesson-time">${escapeHtml(l.time)}</div>
-                <div class="lesson-name">${escapeHtml(l.name)}</div>
-                ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
-              </div>`).join('')
-            }
-          </div>`;
-        }).join('')}
-      </div>
-    `).join('')}
+    ${children.map(c => {
+      const schoolId = getCurrentSchoolId();
+      const schedule = getClassSchedule(schoolId, c.class);
+      return `
+        <h2 style="margin:20px 0 10px;font-size:18px">👨‍🎓 ${escapeHtml(c.fullname)} (${escapeHtml(c.class || '')})</h2>
+        <div class="schedule-grid">
+          ${days.map(day => {
+            const lessons = schedule?.[day] || [];
+            return `<div class="day-card">
+              <h3>${escapeHtml(day)}</h3>
+              ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:10px 0">Нет уроков</p>' :
+                lessons.map((l, idx) => `
+                  <div class="lesson-item" onclick="showParentLessonDetails('${escapeHtml(day)}', ${idx}, '${escapeHtml(c.username)}')" style="cursor:pointer">
+                    <div class="lesson-name">${escapeHtml(l.subject)}</div>
+                    <div class="lesson-time">${escapeHtml(l.time || '')}</div>
+                    ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+                    ${l.teacher ? `<div class="lesson-room">👨‍🏫 ${escapeHtml(l.teacher)}</div>` : ''}
+                  </div>
+                `).join('')
+              }
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    }).join('')}
   `;
+}
+
+function showParentLessonDetails(day, idx, childUsername) {
+  const users = DB.getUsers();
+  const child = users[childUsername];
+  if (!child) return;
+  
+  const schoolId = getCurrentSchoolId();
+  const schedule = getClassSchedule(schoolId, child.class);
+  const lesson = schedule?.[day]?.[idx];
+  if (!lesson) return;
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>📅 ${escapeHtml(day)} — Урок ${idx + 1}</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div style="padding:15px">
+      <div style="margin-bottom:10px"><b>Предмет:</b> ${escapeHtml(lesson.subject)}</div>
+      <div style="margin-bottom:10px"><b>Учитель:</b> ${escapeHtml(lesson.teacher || '—')}</div>
+      <div style="margin-bottom:10px"><b>Кабинет:</b> ${escapeHtml(lesson.room || '—')}</div>
+    </div>
+  `);
 }
 
 // ============ РОДИТЕЛЬ: СТАТИСТИКА ============
@@ -3968,6 +4180,250 @@ function deleteCustomClassLetter(letter) {
   
   renderPage('admin-class-letters');
   toast(`🗑️ Буква "${letter}" удалена`);
+}
+
+// ============ ДИРЕКТОР: УПРАВЛЕНИЕ ВРЕМЕНЕМ УРОКОВ ============
+function renderDirectorLessonTimes() {
+  const schoolId = getCurrentSchoolId();
+  const times = getLessonTimes(schoolId);
+  
+  if (!times) {
+    return `
+      <div class="page-header"><h1>⏰ Время уроков</h1></div>
+      <div class="info-banner info">ℹ️ Настройте время начала и окончания каждого урока</div>
+      <div class="table-wrapper">
+        <div class="table-header"><h3>Добавить время уроков</h3></div>
+        <div style="padding:15px">
+          <button class="btn btn-primary" onclick="openAddLessonTimesModal()">➕ Создать расписание уроков</button>
+        </div>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="page-header"><h1>⏰ Время уроков</h1></div>
+    <div class="info-banner info">ℹ️ Настройте время начала и окончания каждого урока</div>
+    <div class="table-wrapper">
+      <div class="table-header"><h3>Текущее расписание уроков</h3></div>
+      <div style="padding:15px">
+        <table>
+          <thead><tr><th>№ урока</th><th>Начало</th><th>Окончание</th><th>Длительность</th></tr></thead>
+          <tbody>
+            ${Object.entries(times).map(([num, t]) => `
+              <tr>
+                <td><b>${num}-й</b></td>
+                <td>${t.start}</td>
+                <td>${t.end}</td>
+                <td>${calculateDuration(t.start, t.end)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <button class="btn btn-secondary" style="margin-top:15px" onclick="openEditLessonTimesModal()">✏️ Редактировать</button>
+      </div>
+    </div>
+  `;
+}
+
+function calculateDuration(start, end) {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const diff = (eh * 60 + em) - (sh * 60 + sm);
+  return Math.floor(diff / 60) + ' ч ' + (diff % 60) + ' мин';
+}
+
+function openAddLessonTimesModal() {
+  openModal(`
+    <div class="modal-header">
+      <h3>➕ Создать расписание уроков</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="info-banner info">ℹ️ Укажите время начала и окончания для каждого урока (до 8 уроков в день)</div>
+    <div id="lessonTimesInputs">
+      ${[1,2,3,4,5,6,7,8].map(n => `
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+          <label style="width:80px;font-weight:600">${n}-й урок</label>
+          <input type="time" id="lessonStart${n}" value="08:00" style="flex:1">
+          <span>—</span>
+          <input type="time" id="lessonEnd${n}" value="08:45" style="flex:1">
+        </div>
+      `).join('')}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveLessonTimesModal()">Сохранить</button>
+    </div>
+  `);
+}
+
+function openEditLessonTimesModal() {
+  const schoolId = getCurrentSchoolId();
+  const times = getLessonTimes(schoolId);
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>✏️ Редактировать время уроков</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div id="lessonTimesInputs">
+      ${Object.entries(times).map(([n, t]) => `
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+          <label style="width:80px;font-weight:600">${n}-й урок</label>
+          <input type="time" id="lessonStart${n}" value="${t.start}" style="flex:1">
+          <span>—</span>
+          <input type="time" id="lessonEnd${n}" value="${t.end}" style="flex:1">
+        </div>
+      `).join('')}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveEditLessonTimesModal()">Сохранить</button>
+    </div>
+  `);
+}
+
+function saveLessonTimesModal() {
+  const schoolId = getCurrentSchoolId();
+  const times = {};
+  
+  for (let i = 1; i <= 8; i++) {
+    const start = document.getElementById(`lessonStart${i}`)?.value;
+    const end = document.getElementById(`lessonEnd${i}`)?.value;
+    if (start && end) {
+      times[i] = { start, end };
+    }
+  }
+  
+  if (Object.keys(times).length === 0) return toast('Добавьте хотя бы один урок', 'error');
+  
+  saveLessonTimes(schoolId, times);
+  closeModal();
+  renderPage('director-lesson-times');
+  toast('✅ Время уроков сохранено');
+}
+
+function saveEditLessonTimesModal() {
+  const schoolId = getCurrentSchoolId();
+  const times = {};
+  
+  for (let i = 1; i <= 8; i++) {
+    const start = document.getElementById(`lessonStart${i}`)?.value;
+    const end = document.getElementById(`lessonEnd${i}`)?.value;
+    if (start && end) {
+      times[i] = { start, end };
+    }
+  }
+  
+  if (Object.keys(times).length === 0) return toast('Добавьте хотя бы один урок', 'error');
+  
+  saveLessonTimes(schoolId, times);
+  closeModal();
+  renderPage('director-lesson-times');
+  toast('✅ Время уроков обновлено');
+}
+
+// ============ ДИРЕКТОР: УПРАВЛЕНИЕ РАСПИСАНИЕМ ============
+function renderDirectorSchedule() {
+  const schoolId = getCurrentSchoolId();
+  const schools = getSchools();
+  const currentSchoolName = schools[schoolId]?.name || 'Учебное заведение';
+  
+  return `
+    <div class="page-header"><h1>📅 Расписание</h1></div>
+    <div class="info-banner info">ℹ️ Создавайте и редактируйте расписание для каждого класса</div>
+    <div class="table-wrapper">
+      <div class="table-header"><h3>Классы</h3></div>
+      <div style="padding:15px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${generateClassOptions().map(cls => `
+            <button class="btn btn-secondary btn-sm" onclick="openClassScheduleModal('${cls}')">
+              ${cls}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function openClassScheduleModal(className) {
+  const schoolId = getCurrentSchoolId();
+  const schedule = getClassSchedule(schoolId, className);
+  const times = getLessonTimes(schoolId);
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>📅 Расписание класса ${className}</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="info-banner info">ℹ️ Заполните расписание для каждого дня недели</div>
+    <div style="max-height:400px;overflow-y:auto">
+      ${days.map(day => `
+        <div style="margin-bottom:15px">
+          <h4 style="margin-bottom:8px">${day}</h4>
+          <div id="schedule_${day}">
+            ${(schedule?.[day] || []).map((lesson, idx) => `
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                <span style="background:var(--primary);color:white;padding:2px 8px;border-radius:6px;font-size:12px">${idx + 1}</span>
+                <input type="text" class="schedule-subject" value="${escapeHtml(lesson.subject)}" placeholder="Предмет" style="flex:1">
+                <input type="text" class="schedule-teacher" value="${escapeHtml(lesson.teacher || '')}" placeholder="Учитель" style="flex:1">
+                <input type="text" class="schedule-room" value="${escapeHtml(lesson.room || '')}" placeholder="Каб." style="width:60px">
+                <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">×</button>
+              </div>
+            `).join('') || '<p style="color:var(--text-muted);font-size:12px">Нет уроков</p>'}
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="addLessonToDay('${day}')">➕ Добавить урок</button>
+        </div>
+      `).join('')}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveClassScheduleModal('${className}')">Сохранить</button>
+    </div>
+  `);
+}
+
+function addLessonToDay(day) {
+  const container = document.getElementById(`schedule_${day}`);
+  const lessonCount = container.querySelectorAll('[class*="schedule-subject"]').length + 1;
+  
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
+  div.innerHTML = `
+    <span style="background:var(--primary);color:white;padding:2px 8px;border-radius:6px;font-size:12px">${lessonCount}</span>
+    <input type="text" class="schedule-subject" placeholder="Предмет" style="flex:1">
+    <input type="text" class="schedule-teacher" placeholder="Учитель" style="flex:1">
+    <input type="text" class="schedule-room" placeholder="Каб." style="width:60px">
+    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">×</button>
+  `;
+  
+  container.appendChild(div);
+}
+
+function saveClassScheduleModal(className) {
+  const schoolId = getCurrentSchoolId();
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
+  const schedule = {};
+  
+  days.forEach(day => {
+    const container = document.getElementById(`schedule_${day}`);
+    const lessons = [];
+    container.querySelectorAll('[class*="schedule-subject"]').forEach((input, idx) => {
+      const subject = input.value.trim();
+      if (subject) {
+        const teacher = container.querySelectorAll('[class*="schedule-teacher"]')[idx]?.value.trim();
+        const room = container.querySelectorAll('[class*="schedule-room"]')[idx]?.value.trim();
+        lessons.push({ subject, teacher, room });
+      }
+    });
+    if (lessons.length > 0) schedule[day] = lessons;
+  });
+  
+  saveClassSchedule(schoolId, className, schedule);
+  closeModal();
+  renderPage('director-schedule');
+  toast(`✅ Расписание класса ${className} сохранено`);
 }
 
 // ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ АДМИНА ============
