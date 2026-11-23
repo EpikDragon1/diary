@@ -937,7 +937,7 @@ function startSession() {
 }
 
 function roleLabel(role) {
-  return { student: 'Ученик', teacher: 'Учитель', parent: 'Родитель', admin: 'Администратор' }[role];
+  return { student: 'Ученик', teacher: 'Учитель', parent: 'Родитель', admin: 'Администратор', director: 'Директор' }[role];
 }
 
 // ============ ПЕРЕКЛЮЧАТЕЛЬ КЛАССОВ ============
@@ -2768,6 +2768,13 @@ function renderAdminDashboard() {
   const allGrades = students.flatMap(s => Object.values(s.grades || {}).flat());
   const overallAvg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
   const schoolName = getCurrentSchoolName();
+  const currentSchoolId = getCurrentSchoolId();
+  const schoolUsers = Object.values(users).filter(u => u.schoolId === currentSchoolId);
+  const all = schoolUsers;
+  const students = all.filter(u => u.role === 'student');
+  const teachers = all.filter(u => u.role === 'teacher');
+  const parents = all.filter(u => u.role === 'parent');
+  const directors = all.filter(u => u.role === 'director');
   
   return `
     <div class="page-header">
@@ -2786,6 +2793,7 @@ function renderAdminDashboard() {
       <div class="card"><div class="card-icon green">📊</div><div class="card-value">${overallAvg}</div><div class="card-label">Средний балл школы</div></div>
       <div class="card"><div class="card-icon orange">⭐</div><div class="card-value">${allGrades.filter(g => g.value === 5).length}</div><div class="card-label">Пятёрок всего</div></div>
       <div class="card"><div class="card-icon red">📝</div><div class="card-value">${students.reduce((s,x) => s + (x.tasks || []).filter(t => !t.done).length, 0)}</div><div class="card-label">Активных заданий</div></div>
+      <div class="card"><div class="card-icon yellow">👔</div><div class="card-value">${directors.length}</div><div class="card-label">Директоров</div></div>
     </div>
     
     <div class="table-wrapper">
@@ -2962,14 +2970,25 @@ function renderAdminSchools() {
       const schoolUsers = Object.values(users).filter(u => u.schoolId === id);
       const students = schoolUsers.filter(u => u.role === 'student').length;
       const teachers = schoolUsers.filter(u => u.role === 'teacher').length;
+      const directors = schoolUsers.filter(u => u.role === 'director');
+      const directorHtml = directors.length > 0 
+        ? directors.map(d => `
+            <div style="margin-top:8px;font-size:13px">
+              👔 <b>${escapeHtml(d.fullname)}</b> (@${escapeHtml(d.username)}) 
+              <button class="btn btn-danger btn-sm" style="margin-left:8px;padding:2px 6px;font-size:11px" onclick="deleteDirector('${d.username}')">🗑️</button>
+            </div>
+          `).join('')
+        : '<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">👔 Директор не назначен</div>';
       
       return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border:2px solid ${isActive ? 'var(--primary)' : 'var(--border)'};border-radius:12px;margin-bottom:12px;${isActive ? 'background:var(--surface-2)' : ''}">
           <div>
             <div style="font-weight:700;font-size:16px">${escapeHtml(school.name)} ${isActive ? '<span style="color:var(--primary);font-size:12px">● Текущая школа</span>' : ''}</div>
             <div style="font-size:13px;color:var(--text-muted);margin-top:6px">
-              👨‍🎓 ${students} учеников • 👨‍🏫 ${teachers} учителей • 📅 Создана: ${new Date(school.created).toLocaleDateString('ru-RU')}
+              👨‍🎓 ${students} учеников • 👨‍🏫 ${teachers} учителей
             </div>
+            ${directorHtml}
+            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="openAddDirectorModal('${id}')">➕ Добавить директора</button>
           </div>
           <div style="display:flex;gap:8px">
             ${!isActive ? `<button class="btn btn-secondary" onclick="switchSchool('${id}')">🔄 Переключить</button>` : '<span style="color:var(--primary);font-size:12px;padding:4px 8px;background:var(--surface);border-radius:6px">Текущая</span>'}
@@ -2979,6 +2998,80 @@ function renderAdminSchools() {
       `;
     }).join('')}
   `;
+}
+
+// ============ АДМИН: ДИРЕКТОРА ============
+function openAddDirectorModal(schoolId) {
+  openModal(`
+    <div class="modal-header">
+      <h3>➕ Добавить директора школы</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="info-banner info">
+      ℹ️ Директор может управлять школой через "Вход для администраторов".
+    </div>
+    <div class="form-group">
+      <label>Логин (латиница)</label>
+      <input type="text" id="directorUsername" placeholder="director_ivanov">
+    </div>
+    <div class="form-group">
+      <label>Полное имя</label>
+      <input type="text" id="directorFullname" placeholder="Иванов Иван Иванович">
+    </div>
+    <div class="form-group">
+      <label>Пароль (мин. 8 символов)</label>
+      <input type="password" id="directorPassword" placeholder="Минимум 8 символов">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="addDirector('${schoolId}')">➕ Добавить</button>
+    </div>
+  `);
+}
+
+async function addDirector(schoolId) {
+  const username = document.getElementById('directorUsername').value.trim();
+  const fullname = document.getElementById('directorFullname').value.trim();
+  const pass = document.getElementById('directorPassword').value;
+  
+  if (username.length < 3) return toast('Логин минимум 3 символа', 'error');
+  if (!fullname) return toast('Введите полное имя', 'error');
+  if (pass.length < 8) return toast('Пароль минимум 8 символов', 'error');
+  
+  const users = DB.getUsers();
+  
+  if (users[username]) return toast('Пользователь уже существует', 'error');
+  
+  const salt = generateSalt();
+  const hash = await hashPassword(salt + pass);
+  
+  users[username] = {
+    username, fullname, salt, hash,
+    role: 'director',
+    schoolId: schoolId,
+    created: Date.now(),
+    settings: { theme: 'light' }
+  };
+  
+  DB.saveUsers(users);
+  closeModal();
+  renderPage('admin-schools');
+  toast('✅ Директор ' + fullname + ' добавлен');
+}
+
+function deleteDirector(username) {
+  if (!confirm('Удалить директора "' + username + '"?')) return;
+  
+  const users = DB.getUsers();
+  delete users[username];
+  DB.saveUsers(users);
+  
+  if (firebaseInitialized && isOnline) {
+    firebaseDB.ref('users/' + username).remove();
+  }
+  
+  renderPage('admin-schools');
+  toast('🗑️ Директор удалён');
 }
 
 // ============ АДМИН: УЧИТЕЛЯ ============
@@ -4705,7 +4798,7 @@ function showLogin() {
   hideError();
 }
 
-// Вход для администратора
+// Вход для администратора или директора
 async function adminLogin() {
   const username = document.getElementById('adminLoginUsername').value.trim();
   const pass = document.getElementById('adminLoginPassword').value;
@@ -4718,17 +4811,17 @@ async function adminLogin() {
     return showError(`❌ Слишком много попыток. Подождите ${attemptCheck.timeLeft} мин.`);
   }
   
-  // Ищем админа
+  // Ищем админа или директора
   const users = DB.getUsers();
-  const admin = Object.values(users).find(u => u.role === 'admin' && u.username === username);
+  const adminOrDirector = Object.values(users).find(u => (u.role === 'admin' || u.role === 'director') && u.username === username);
   
-  if (!admin) {
+  if (!adminOrDirector) {
     recordLoginAttempt(username);
-    return showError('Администратор не найден');
+    return showError('Администратор или директор не найден');
   }
   
-  const correctHash = await hashPassword(admin.salt + pass);
-  if (correctHash !== admin.hash) {
+  const correctHash = await hashPassword(adminOrDirector.salt + pass);
+  if (correctHash !== adminOrDirector.hash) {
     recordLoginAttempt(username);
     return showError('Неверный пароль');
   }
@@ -4736,11 +4829,11 @@ async function adminLogin() {
   // Успешный вход — сброс попыток
   clearLoginAttempts(username);
   
-  // Входим как админ
-  currentUser = { username: admin.username, ...admin };
+  // Входим как админ или директор
+  currentUser = { username: adminOrDirector.username, ...adminOrDirector };
   DB.setCurrent(username);
   startSession();
-  toast('👑 Добро пожаловать, администратор!');
+  toast('👑 Добро пожаловать, ' + (adminOrDirector.role === 'admin' ? 'администратор' : 'директор') + '!');
 }
 
 function initAuthScreen() {
