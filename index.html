@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://www.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://*.firebaseio.com https://*.firebaseapp.com https://www.googleapis.com; child-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://www.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com https://*.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://*.firebaseio.com https://*.firebaseapp.com https://www.googleapis.com https://*.googleapis.com; child-src 'none';">
 <title>📚 Электронный дневник</title>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -2768,12 +2768,6 @@ function renderAdminDashboard() {
   const allGrades = students.flatMap(s => Object.values(s.grades || {}).flat());
   const overallAvg = allGrades.length ? (allGrades.reduce((s,g) => s + g.value, 0) / allGrades.length).toFixed(2) : '—';
   const schoolName = getCurrentSchoolName();
-  const currentSchoolId = getCurrentSchoolId();
-  const schoolUsers = Object.values(users).filter(u => u.schoolId === currentSchoolId);
-  const all = schoolUsers;
-  const students = all.filter(u => u.role === 'student');
-  const teachers = all.filter(u => u.role === 'teacher');
-  const parents = all.filter(u => u.role === 'parent');
   const directors = all.filter(u => u.role === 'director');
   
   return `
