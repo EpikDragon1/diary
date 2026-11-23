@@ -1049,6 +1049,17 @@ function buildNavigation() {
       { id: 'help', icon: '❓', label: 'Справка' },
       { id: 'settings', icon: '⚙️', label: 'Настройки' }
     ];
+  } else if (currentUser.role === 'director') {
+    items = [
+      { id: 'admin-dashboard', icon: '🏠', label: 'Панель управления' },
+      { id: 'admin-schools', icon: '🏫', label: 'Школы' },
+      { id: 'admin-teachers', icon: '👨‍🏫', label: 'Учителя' },
+      { id: 'admin-students', icon: '👨‍🎓', label: 'Ученики' },
+      { id: 'admin-stats', icon: '📊', label: 'Статистика школы' },
+      { id: 'admin-rating', icon: '🏆', label: 'Рейтинг' },
+      { id: 'help', icon: '❓', label: 'Справка' },
+      { id: 'settings', icon: '⚙️', label: 'Настройки' }
+    ];
   }
   
   nav.innerHTML = items.map(i => 
@@ -1111,6 +1122,15 @@ function renderPage(pageId) {
     else if (pageId === 'admin-teachers') main.innerHTML = renderAdminTeachers();
     else if (pageId === 'admin-students') main.innerHTML = renderAdminStudents();
     else if (pageId === 'admin-class-letters') main.innerHTML = renderAdminClassLetters();
+    else if (pageId === 'admin-stats') main.innerHTML = renderAdminStats();
+    else if (pageId === 'admin-rating') main.innerHTML = renderAdminRating();
+    else if (pageId === 'help') main.innerHTML = renderHelp();
+    else if (pageId === 'settings') main.innerHTML = renderSettings();
+  } else if (r === 'director') {
+    if (pageId === 'admin-dashboard') main.innerHTML = renderAdminDashboard();
+    else if (pageId === 'admin-schools') main.innerHTML = renderAdminSchools();
+    else if (pageId === 'admin-teachers') main.innerHTML = renderAdminTeachers();
+    else if (pageId === 'admin-students') main.innerHTML = renderAdminStudents();
     else if (pageId === 'admin-stats') main.innerHTML = renderAdminStats();
     else if (pageId === 'admin-rating') main.innerHTML = renderAdminRating();
     else if (pageId === 'help') main.innerHTML = renderHelp();
@@ -2777,7 +2797,7 @@ function renderAdminDashboard() {
     </div>
     
     <div class="info-banner success">
-      👑 <div><b>Вы — администратор системы.</b><br>Управление учителями, статистика и рейтинг школы доступны в меню слева.</div>
+      ${currentUser.role === 'director' ? '👔' : '👑'} <div><b>Вы — ${currentUser.role === 'director' ? 'директор школы' : 'администратор системы'}.<br>Управление учителями, статистика и рейтинг школы доступны в меню слева.</b></div>
     </div>
     
     <div class="cards-grid">
