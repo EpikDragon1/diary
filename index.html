@@ -2025,8 +2025,12 @@ function openImportStudentsModal() {
   `);
   
   const fileInput = document.getElementById('importStudentsFile');
-  fileInput.onchange = function() {
-    const file = fileInput.files[0];
+  // Удаляем старый обработчик перед добавлением нового
+  const newInput = fileInput.cloneNode(true);
+  fileInput.parentNode.replaceChild(newInput, fileInput);
+  
+  newInput.addEventListener('change', function() {
+    const file = newInput.files[0];
     if (!file) return;
     
     const reader = new FileReader();
@@ -2037,7 +2041,7 @@ function openImportStudentsModal() {
       window._importParsedStudents = [];
       const previewList = document.getElementById('importPreviewList');
       
-      lines.forEach((line, idx) => {
+      lines.forEach((line) => {
         // Разделяем по пробелам
         const parts = line.split(/\s+/).map(p => p.trim()).filter(p => p.length > 0);
         
@@ -2070,7 +2074,7 @@ function openImportStudentsModal() {
       }
     };
     reader.readAsText(file, 'UTF-8');
-  };
+  });
 }
 
 async function processImportStudents() {
@@ -2116,14 +2120,6 @@ async function processImportStudents() {
       created: Date.now(),
       settings: { theme: 'light', tempPassword: randomPass }
     };
-    
-    // Добавляем в список классного руководителя
-    if (!currentUser.students.includes(username)) {
-      currentUser.students.push(username);
-    }
-    
-    // Привязываем к классному руководителю
-    users[username].homeroomTeacher = currentUser.username;
     
     imported++;
   }
