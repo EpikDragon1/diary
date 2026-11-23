@@ -3964,10 +3964,35 @@ async function saveTeacher(username) {
 }
 
 function deleteTeacher(username) {
-  if (!confirm('Удалить учителя? Все его данные будут потеряны.')) return;
+  if (!confirm('Удалить учителя? Все его ученики и родители также будут удалены.')) return;
   const users = DB.getUsers();
   
-  // Удаляем из списков учеников
+  // Собираем учеников и родителей учителя
+  const studentsToDelete = [];
+  const parentsToDelete = [];
+  
+  Object.values(users).forEach(u => {
+    if (u.role === 'student' && u.teacherUsername === username) {
+      studentsToDelete.push(u.username);
+    }
+    if (u.role === 'parent' && u.teacherUsername === username) {
+      parentsToDelete.push(u.username);
+    }
+  });
+  
+  // Собираем родителей учеников
+  studentsToDelete.forEach(s => {
+    const student = users[s];
+    if (student && student.parents) {
+      student.parents.forEach(p => {
+        if (!parentsToDelete.includes(p)) {
+          parentsToDelete.push(p);
+        }
+      });
+    }
+  });
+  
+  // Удаляем из списков других учителей
   Object.values(users).forEach(u => {
     if (u.role === 'teacher' && u.students) {
       u.students = u.students.filter(s => s !== username);
@@ -3977,16 +4002,21 @@ function deleteTeacher(username) {
     }
   });
   
+  // Удаляем всех
+  studentsToDelete.forEach(s => delete users[s]);
+  parentsToDelete.forEach(p => delete users[p]);
   delete users[username];
   DB.saveUsers(users);
   
   // Удаляем из Firebase
   if (firebaseInitialized && isOnline) {
     firebaseDB.ref('users/' + username).remove();
+    studentsToDelete.forEach(s => firebaseDB.ref('users/' + s).remove());
+    parentsToDelete.forEach(p => firebaseDB.ref('users/' + p).remove());
   }
   
   renderPage('admin-teachers');
-  toast('🗑️ Учитель удалён');
+  toast(`🗑️ Учитель удалён (${studentsToDelete.length} учеников, ${parentsToDelete.length} родителей)`);
 }
 
 // ============ АДМИН: УЧЕНИКИ ============
