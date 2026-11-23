@@ -712,7 +712,7 @@ const DB = {
     // Сохраняем в Firebase если онлайн
     if (firebaseInitialized && isOnline) {
       try {
-        await firebaseDB.ref('users').set(u);
+        await firebaseDB.ref('users').update(u);
         usersCache = u; // Обновляем кэш
       } catch (e) {
         console.error('Ошибка записи Firebase:', e);
@@ -4775,13 +4775,13 @@ async function createDefaultAdmin() {
   document.getElementById('authScreen').style.display = 'flex';
   initAuthScreen();
   
-  // Сначала создаем админа по умолчанию (ДО загрузки из Firebase)
-  await createDefaultAdmin();
-  
-  // Потом загружаем из Firebase если онлайн
+  // Сначала загружаем из Firebase если онлайн
   if (firebaseInitialized && isOnline) {
     await syncFromFirebase();
   }
+  
+  // Потом создаем админа по умолчанию (если его нет)
+  await createDefaultAdmin();
   
   // Обновляем currentUser если есть сохраненная сессия
   const saved = DB.getCurrent();
