@@ -2461,11 +2461,6 @@ function renderTeacherStats() {
     };
   }).filter(s => s.count > 0).sort((a,b) => b.avg - a.avg);
   
-  const teacherClasses = [...(currentUser.classes || [])];
-  if (currentUser.isHomeroomTeacher) {
-    teacherClasses.push(currentUser.homeroomClass);
-  }
-  
   return `
     <div class="page-header"><h1>📈 Статистика</h1></div>
     
