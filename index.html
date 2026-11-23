@@ -1298,16 +1298,24 @@ function renderStudentSchedule() {
     <div class="schedule-grid">
       ${days.map(day => {
         const lessons = schedule?.[day] || [];
+        const lessonTimes = getLessonTimes(schoolId);
         return `<div class="day-card">
           <h3>${day}</h3>
           ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
-            lessons.map((l, idx) => `
-              <div class="lesson-item" onclick="showLessonDetails('${escapeHtml(day)}', ${idx})" style="cursor:pointer">
-                <div class="lesson-name">${escapeHtml(l.subject)}</div>
-                <div class="lesson-time">${escapeHtml(l.time || '')}</div>
-                ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
-              </div>
-            `).join('')
+            lessons.map((l, idx) => {
+              const lessonNum = idx + 1;
+              const time = lessonTimes?.[lessonNum];
+              return `
+                <div class="lesson-item" onclick="showLessonDetails('${escapeHtml(day)}', ${idx})" style="cursor:pointer">
+                  <div class="lesson-name">${escapeHtml(l.subject)}</div>
+                  <div class="lesson-time">
+                    <span style="font-weight:700;color:var(--primary)">#${lessonNum}</span>
+                    ${time ? ` ${time.start}-${time.end}` : ''}
+                  </div>
+                  ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+                </div>
+              `;
+            }).join('')
           }
         </div>`;
       }).join('')}
@@ -1343,6 +1351,7 @@ function renderTeacherSchedule() {
   const users = DB.getUsers();
   const schools = getSchools();
   const currentSchoolName = schools[schoolId]?.name || 'Учебное заведение';
+  const lessonTimes = getLessonTimes(schoolId);
   
   // Собираем расписание учителя из всех классов школы
   const teacherSchedule = {};
@@ -1355,14 +1364,18 @@ function renderTeacherSchedule() {
     if (classSchedule) {
       days.forEach(day => {
         const lessons = classSchedule[day] || [];
-        lessons.forEach(lesson => {
+        lessons.forEach((lesson, idx) => {
           // Если учитель указан в расписании — добавляем в его расписание
           if (lesson.teacher === teacherName) {
+            const lessonNum = idx + 1;
+            const time = lessonTimes?.[lessonNum];
             teacherSchedule[day].push({
               subject: lesson.subject,
               class: cls,
               room: lesson.room,
-              time: ''
+              lessonNum: lessonNum,
+              timeStart: time?.start || '',
+              timeEnd: time?.end || ''
             });
           }
         });
@@ -1370,9 +1383,9 @@ function renderTeacherSchedule() {
     }
   });
   
-  // Сортируем по дням и номерам
+  // Сортируем по номерам уроков
   days.forEach(day => {
-    teacherSchedule[day].sort((a, b) => a.class.localeCompare(b.class));
+    teacherSchedule[day].sort((a, b) => a.lessonNum - b.lessonNum);
   });
   
   return `
@@ -1384,10 +1397,13 @@ function renderTeacherSchedule() {
         return `<div class="day-card">
           <h3>${day}</h3>
           ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
-            lessons.map((l, idx) => `
+            lessons.map((l) => `
               <div class="lesson-item">
                 <div class="lesson-name">${escapeHtml(l.subject)}</div>
-                <div class="lesson-time">${escapeHtml(l.time || '')}</div>
+                <div class="lesson-time">
+                  <span style="font-weight:700;color:var(--primary)">#${l.lessonNum}</span>
+                  ${l.timeStart ? ` ${l.timeStart}-${l.timeEnd}` : ''}
+                </div>
                 <div class="lesson-room">🏫 ${escapeHtml(l.class)}</div>
                 ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
               </div>
@@ -1856,6 +1872,7 @@ function renderHomeroomSchedule() {
   const schoolId = getCurrentSchoolId();
   const className = currentUser.homeroomClass;
   const schedule = getClassSchedule(schoolId, className);
+  const lessonTimes = getLessonTimes(schoolId);
   const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
   
   return `
@@ -1867,15 +1884,22 @@ function renderHomeroomSchedule() {
         return `<div class="day-card">
           <h3>${day}</h3>
           ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:15px 0">Нет уроков</p>' :
-            lessons.map((l, idx) => `
-              <div class="lesson-item">
-                <div class="lesson-name">${escapeHtml(l.subject)}</div>
-                <div class="lesson-time">${escapeHtml(l.time || '')}</div>
-                <div class="lesson-room">🏫 ${escapeHtml(l.class || '')}</div>
-                ${l.teacher ? `<div class="lesson-room">👨‍🏫 ${escapeHtml(l.teacher)}</div>` : ''}
-                ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
-              </div>
-            `).join('')
+            lessons.map((l, idx) => {
+              const lessonNum = idx + 1;
+              const time = lessonTimes?.[lessonNum];
+              return `
+                <div class="lesson-item">
+                  <div class="lesson-name">${escapeHtml(l.subject)}</div>
+                  <div class="lesson-time">
+                    <span style="font-weight:700;color:var(--primary)">#${lessonNum}</span>
+                    ${time ? ` ${time.start}-${time.end}` : ''}
+                  </div>
+                  <div class="lesson-room">🏫 ${escapeHtml(l.class || '')}</div>
+                  ${l.teacher ? `<div class="lesson-room">👨‍🏫 ${escapeHtml(l.teacher)}</div>` : ''}
+                  ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+                </div>
+              `;
+            }).join('')
           }
         </div>`;
       }).join('')}
@@ -2944,6 +2968,7 @@ function renderParentSchedule() {
     ${children.map(c => {
       const schoolId = getCurrentSchoolId();
       const schedule = getClassSchedule(schoolId, c.class);
+      const lessonTimes = getLessonTimes(schoolId);
       return `
         <h2 style="margin:20px 0 10px;font-size:18px">👨‍🎓 ${escapeHtml(c.fullname)} (${escapeHtml(c.class || '')})</h2>
         <div class="schedule-grid">
@@ -2952,14 +2977,21 @@ function renderParentSchedule() {
             return `<div class="day-card">
               <h3>${escapeHtml(day)}</h3>
               ${lessons.length === 0 ? '<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:10px 0">Нет уроков</p>' :
-                lessons.map((l, idx) => `
-                  <div class="lesson-item" onclick="showParentLessonDetails('${escapeHtml(day)}', ${idx}, '${escapeHtml(c.username)}')" style="cursor:pointer">
-                    <div class="lesson-name">${escapeHtml(l.subject)}</div>
-                    <div class="lesson-time">${escapeHtml(l.time || '')}</div>
-                    ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
-                    ${l.teacher ? `<div class="lesson-room">👨‍🏫 ${escapeHtml(l.teacher)}</div>` : ''}
-                  </div>
-                `).join('')
+                lessons.map((l, idx) => {
+                  const lessonNum = idx + 1;
+                  const time = lessonTimes?.[lessonNum];
+                  return `
+                    <div class="lesson-item" onclick="showParentLessonDetails('${escapeHtml(day)}', ${idx}, '${escapeHtml(c.username)}')" style="cursor:pointer">
+                      <div class="lesson-name">${escapeHtml(l.subject)}</div>
+                      <div class="lesson-time">
+                        <span style="font-weight:700;color:var(--primary)">#${lessonNum}</span>
+                        ${time ? ` ${time.start}-${time.end}` : ''}
+                      </div>
+                      ${l.room ? `<div class="lesson-room">📍 Каб. ${escapeHtml(l.room)}</div>` : ''}
+                      ${l.teacher ? `<div class="lesson-room">👨‍🏫 ${escapeHtml(l.teacher)}</div>` : ''}
+                    </div>
+                  `;
+                }).join('')
               }
             </div>`;
           }).join('')}
