@@ -4741,9 +4741,11 @@ function initAuthScreen() {
 async function createDefaultAdmin() {
   const users = DB.getUsers();
   
-  // Проверяем, есть ли уже админ
-  const adminExists = Object.values(users).some(u => u.role === 'admin');
-  if (adminExists) return;
+  // Проверяем, есть ли уже админ с логином "admin"
+  if (users['admin']) {
+    console.log('ℹ️ Админ уже существует');
+    return;
+  }
   
   // Создаем первую школу
   const schools = getSchools();
