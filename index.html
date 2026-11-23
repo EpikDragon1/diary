@@ -2311,76 +2311,6 @@ function renderTeacherGrades() {
   printWindow.document.close();
 }
 
-// ============ УЧИТЕЛЬ: ЖУРНАЛ ОЦЕНОК ============
-function renderTeacherGrades() {
-  const users = DB.getUsers();
-  const currentSchoolId = getCurrentSchoolId();
-  
-  // Получаем учеников текущего класса (с учетом школы)
-  let students = [];
-  if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
-  }
-  
-  const isHomeroom = currentUser.isHomeroomTeacher;
-  
-  // Определяем предметы для отображения
-  let displaySubjects = [...new Set(currentUser.subjects)];
-  if (isHomeroom) {
-    students.forEach(s => {
-      Object.keys(s.grades || {}).forEach(subj => {
-        if (!displaySubjects.includes(subj)) displaySubjects.push(subj);
-      });
-    });
-  }
-  
-  if (students.length === 0) {
-    return `<div class="page-header"><h1>📊 Журнал оценок</h1></div>
-      <div class="empty-state"><div class="icon">👥</div><p>Сначала добавьте учеников</p></div>`;
-  }
-  
-  const accessInfo = isHomeroom 
-    ? `🏫 Вы видите <b>все предметы</b> учеников вашего класса ${currentClass}`
-    : `ℹ️ Вы можете ставить оценки только по своим предметам: <b>${currentUser.subjects.join(', ')}</b>`;
-  
-  return `
-    <div class="page-header">
-      <h1>📊 Журнал оценок</h1>
-      <button class="btn btn-primary" onclick="openGradeModalForStudent()">➕ Поставить оценку</button>
-    </div>
-    <div class="info-banner ${isHomeroom ? 'success' : 'info'}">${accessInfo}</div>
-    
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Ученик</th>
-            ${displaySubjects.map(s => `<th>${s}</th>`).join('')}
-            <th>Средний</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${students.map(s => {
-            let total = 0, count = 0;
-            const cells = displaySubjects.map(subj => {
-              const grades = filterGrades(s.grades && s.grades[subj] || []);
-              const avg = grades.length ? (grades.reduce((a,g) => a + g.value, 0) / grades.length).toFixed(1) : '—';
-              if (grades.length) { total += grades.reduce((a,g) => a + g.value, 0); count += grades.length; }
-              return `<td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>'} <small style="color:var(--text-muted)">${avg}</small></td>`;
-            }).join('');
-            const totalAvg = count ? (total / count).toFixed(2) : '—';
-            return `<tr>
-              <td><b>${escapeHtml(s.fullname)}</b><br><small style="color:var(--text-muted)">${escapeHtml(s.class || '')}</small></td>
-              ${cells}
-              <td><b>${totalAvg}</b></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
 let allTasks = [];
 
 // ============ УЧИТЕЛЬ: ЗАДАНИЯ ============
@@ -2518,11 +2448,16 @@ function renderTeacherStats() {
     };
   }).filter(s => s.count > 0).sort((a,b) => b.avg - a.avg);
   
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
+  }
+  
   return `
     <div class="page-header"><h1>📈 Статистика</h1></div>
     
     <div class="cards-grid">
-      <div class="card"><div class="card-icon blue">👨‍🎓</div><div class="card-value">${students.length}</div><div class="card-label">Учеников в классе ${currentClass}</div></div>
+      <div class="card"><div class="card-icon blue">👨‍🎓</div><div class="card-value">${students.length}</div><div class="card-label">Учеников в классах ${teacherClasses.join(', ')}</div></div>
       <div class="card"><div class="card-icon green">📊</div><div class="card-value">${subjectStats.length}</div><div class="card-label">Предметов</div></div>
     </div>
     
