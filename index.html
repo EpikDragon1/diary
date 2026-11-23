@@ -1589,18 +1589,28 @@ function renderTeacherStudents() {
   const users = DB.getUsers();
   const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников для текущего выбранного класса (с учетом школы)
+  // Получаем учеников из классов, где учитель ведёт предметы
   let students = [];
-  if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
   }
+  
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+    classStudents.forEach(s => {
+      if (!students.find(existing => existing.username === s.username)) {
+        students.push(s);
+      }
+    });
+  });
   
   const isHomeroom = currentUser.isHomeroomTeacher;
   const homeroomInfo = isHomeroom ? ` (классный руководитель ${currentUser.homeroomClass})` : '';
   
   // Классный руководитель видит все предметы своего класса, обычный учитель — только свои предметы
   const accessInfo = isHomeroom 
-    ? `Вы видите <b>все предметы</b> учеников класса ${currentClass}.`
+    ? `Вы видите <b>все предметы</b> учеников класса ${currentUser.homeroomClass}.`
     : `Вы можете ставить оценки и добавлять задания только по своим предметам: <b>${currentUser.subjects.join(', ')}</b>`;
   
   // Кнопки добавления только для классного руководителя
@@ -1612,7 +1622,7 @@ function renderTeacherStudents() {
   
   return `
     <div class="page-header">
-      <h1>👥 Ученики класса ${currentClass || ''}</h1>
+      <h1>👥 Мои ученики</h1>
       <div style="display:flex;gap:8px">${actionButtons}</div>
     </div>
     
@@ -1621,7 +1631,7 @@ function renderTeacherStudents() {
     </div>
     
     ${students.length === 0 ? 
-    '<div class="empty-state"><div class="icon">👥</div><p>В классе пока нет учеников. Классный руководитель может добавить их через "Добавить ученика" или "Импорт из файла".</p></div>' :
+    '<div class="empty-state"><div class="icon">👥</div><p>В классах пока нет учеников. Классный руководитель может добавить их через "Добавить ученика" или "Импорт из файла".</p></div>' :
     `<div class="person-list">
       ${students.map(s => {
         const allGrades = isHomeroom 
@@ -2088,16 +2098,84 @@ async function processImportStudents() {
 }
 
 // ============ УЧИТЕЛЬ: ПЕЧАТЬ ПАРОЛЕЙ ============
-function printPasswords() {
-  if (!currentUser.isHomeroomTeacher) return;
-  if (!currentClass) return toast('Выберите класс', 'warning');
-  
+function renderTeacherGrades() {
   const users = DB.getUsers();
-  const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  const currentSchoolId = getCurrentSchoolId();
   
-  if (classStudents.length === 0) {
-    return toast('В классе нет учеников', 'warning');
+  // Получаем учеников из классов, где учитель ведёт предметы
+  let students = [];
+  const teacherClasses = currentUser.classes || [];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
   }
+  
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+    classStudents.forEach(s => {
+      if (!students.find(existing => existing.username === s.username)) {
+        students.push(s);
+      }
+    });
+  });
+  
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  
+  // Определяем предметы для отображения
+  let displaySubjects = [...new Set(currentUser.subjects)];
+  if (isHomeroom) {
+    students.forEach(s => {
+      Object.keys(s.grades || {}).forEach(subj => {
+        if (!displaySubjects.includes(subj)) displaySubjects.push(subj);
+      });
+    });
+  }
+  
+  if (students.length === 0) {
+    return `<div class="page-header"><h1>📊 Журнал оценок</h1></div>
+      <div class="empty-state"><div class="icon">👥</div><p>Сначала добавьте учеников</p></div>`;
+  }
+  
+  const accessInfo = isHomeroom 
+    ? `🏫 Вы видите <b>все предметы</b> учеников вашего класса ${currentUser.homeroomClass}`
+    : `ℹ️ Вы можете ставить оценки только по своим предметам: <b>${currentUser.subjects.join(', ')}</b>`;
+  
+  return `
+    <div class="page-header">
+      <h1>📊 Журнал оценок</h1>
+      <button class="btn btn-primary" onclick="openGradeModalForStudent()">➕ Поставить оценку</button>
+    </div>
+    <div class="info-banner ${isHomeroom ? 'success' : 'info'}">${accessInfo}</div>
+    
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Ученик</th>
+            ${displaySubjects.map(s => `<th>${s}</th>`).join('')}
+            <th>Средний</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${students.map(s => {
+            let total = 0, count = 0;
+            const cells = displaySubjects.map(subj => {
+              const grades = filterGrades(s.grades && s.grades[subj] || []);
+              const avg = grades.length ? (grades.reduce((a,g) => a + g.value, 0) / grades.length).toFixed(1) : '—';
+              if (grades.length) { total += grades.reduce((a,g) => a + g.value, 0); count += grades.length; }
+              return `<td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>'} <small style="color:var(--text-muted)">${avg}</small></td>`;
+            }).join('');
+            const totalAvg = count ? (total / count).toFixed(2) : '—';
+            return `<tr>
+              <td><b>${escapeHtml(s.fullname)}</b><br><small style="color:var(--text-muted)">${escapeHtml(s.class || '')}</small></td>
+              ${cells}
+              <td><b>${totalAvg}</b></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
   
   // Сортируем по фамилии
   classStudents.sort((a, b) => a.fullname.localeCompare(b.fullname, 'ru'));
@@ -2310,11 +2388,21 @@ function renderTeacherTasks() {
   const users = DB.getUsers();
   const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса (с учетом школы)
+  // Получаем учеников из классов, где учитель ведёт предметы
   let students = [];
-  if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
+  const teacherClasses = currentUser.classes || [];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
   }
+  
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+    classStudents.forEach(s => {
+      if (!students.find(existing => existing.username === s.username)) {
+        students.push(s);
+      }
+    });
+  });
   
   const isHomeroom = currentUser.isHomeroomTeacher;
   
@@ -2325,7 +2413,7 @@ function renderTeacherTasks() {
         // Классный руководитель видит все задания учеников класса
         allTasks.push({ ...t, studentName: s.fullname, studentUsername: s.username, taskIdx, studentIdx: students.indexOf(s) });
       } else {
-        // Обычный учитель — только по своим предметам
+        // Обычный учитель — только по своим предметам и свои задания
         if (currentUser.subjects.includes(t.subject) || t.teacherUsername === currentUser.username) {
           allTasks.push({ ...t, studentName: s.fullname, studentUsername: s.username, taskIdx, studentIdx: students.indexOf(s) });
         }
@@ -2336,8 +2424,8 @@ function renderTeacherTasks() {
   allTasks.sort((a,b) => b.created - a.created);
   
   const infoText = isHomeroom
-    ? `🏫 Задания всех учеников вашего класса ${currentClass}`
-    : `ℹ️ Задания отображаются по вашим предметам у учеников класса ${currentClass}`;
+    ? `🏫 Задания всех учеников вашего класса ${currentUser.homeroomClass}`
+    : `ℹ️ Задания отображаются по вашим предметам у учеников класса ${teacherClasses.join(', ')}`;
   
   return `
     <div class="page-header">
@@ -2376,11 +2464,21 @@ function renderTeacherStats() {
   const users = DB.getUsers();
   const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса (с учетом школы)
+  // Получаем учеников из классов, где учитель ведёт предметы
   let students = [];
-  if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
   }
+  
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+    classStudents.forEach(s => {
+      if (!students.find(existing => existing.username === s.username)) {
+        students.push(s);
+      }
+    });
+  });
   
   const isHomeroom = currentUser.isHomeroomTeacher;
   
@@ -2468,11 +2566,21 @@ function renderTeacherParents() {
   const users = DB.getUsers();
   const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса (с учетом школы)
+  // Получаем учеников из классов, где учитель ведёт предметы
   let students = [];
-  if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
   }
+  
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+    classStudents.forEach(s => {
+      if (!students.find(existing => existing.username === s.username)) {
+        students.push(s);
+      }
+    });
+  });
   
   // Собираем всех родителей учеников
   const parentMap = {};
@@ -2501,7 +2609,7 @@ function renderTeacherParents() {
       <button class="btn btn-primary" onclick="openAddParentModal()">➕ Добавить родителя</button>
     </div>
     
-    <div class="info-banner info">ℹ️ Здесь отображаются все родители учеников класса ${currentClass}</div>
+    <div class="info-banner info">ℹ️ Здесь отображаются все родители учеников классов ${teacherClasses.join(', ')}</div>
     
     ${parents.length === 0 ? 
       '<div class="empty-state"><div class="icon">👨‍👩‍👧</div><p>Пока нет зарегистрированных родителей</p></div>' :
@@ -2529,11 +2637,21 @@ function renderTeacherParents() {
 function openAddParentModal() {
   const users = DB.getUsers();
   
-  // Получаем учеников текущего класса
+  // Получаем учеников из классов учителя
   let students = [];
-  if (currentClass) {
-    students = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass);
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
   }
+  
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls);
+    classStudents.forEach(s => {
+      if (!students.find(existing => existing.username === s.username)) {
+        students.push(s);
+      }
+    });
+  });
   
   openModal(`
     <div class="modal-header">
@@ -4777,11 +4895,21 @@ function openGradeModalForStudent(studentUsername) {
   const users = DB.getUsers();
   const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса (с учетом школы)
+  // Получаем учеников из классов учителя
   let studentsList = [];
-  if (currentClass) {
-    studentsList = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
   }
+  
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+    classStudents.forEach(s => {
+      if (!studentsList.find(existing => existing.username === s.username)) {
+        studentsList.push(s);
+      }
+    });
+  });
   
   const today = new Date().toISOString().split('T')[0];
   const isHomeroom = currentUser.isHomeroomTeacher;
@@ -4853,12 +4981,18 @@ function saveTeacherGrade() {
   
   if (!subject) return toast('Выберите предмет', 'error');
   
-  // Проверяем, что ученик из текущего класса
-  if (!currentClass) return toast('Выберите класс', 'error');
+  // Получаем список классов учителя
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
+  }
   
   const users = DB.getUsers();
   const student = users[studentUsername];
-  if (!student || student.class !== currentClass || student.schoolId !== getCurrentSchoolId()) {
+  if (!student) return toast('Ученик не найден', 'error');
+  
+  // Проверяем, что ученик из класса, где учитель ведёт предметы
+  if (!teacherClasses.includes(student.class) || student.schoolId !== getCurrentSchoolId()) {
     return toast('Нет доступа к этому ученику', 'error');
   }
   
@@ -4895,11 +5029,21 @@ function openTaskModalForStudent(studentUsername) {
   const users = DB.getUsers();
   const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса (с учетом школы)
+  // Получаем учеников из классов учителя
   let studentsList = [];
-  if (currentClass) {
-    studentsList = Object.values(users).filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId);
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
   }
+  
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+    classStudents.forEach(s => {
+      if (!studentsList.find(existing => existing.username === s.username)) {
+        studentsList.push(s);
+      }
+    });
+  });
   
   const today = new Date().toISOString().split('T')[0];
   const isHomeroom = currentUser.isHomeroomTeacher;
@@ -4914,13 +5058,13 @@ function openTaskModalForStudent(studentUsername) {
   
   openModal(`
     <div class="modal-header">
-      <h3>Добавить задание для класса ${currentClass || '—'}</h3>
+      <h3>Добавить задание</h3>
       <button class="close-btn" onclick="closeModal()">×</button>
     </div>
     <div class="form-group">
       <label>Для кого</label>
       <select id="taskStudent">
-        <option value="all">Всем ученикам класса ${currentClass || '—'}</option>
+        <option value="all">Всем ученикам</option>
         ${studentsList.map(s => `<option value="${s.username}" ${s.username===targetStudent?'selected':''}>${s.fullname}</option>`).join('')}
       </select>
     </div>
@@ -4956,8 +5100,11 @@ function saveTeacherTask() {
   if (!subject) return toast('Выберите предмет', 'error');
   if (!dueDate) return toast('Укажите срок', 'error');
   
-  // Проверяем currentClass
-  if (!currentClass) return toast('❌ Не выбран класс', 'error');
+  // Получаем список классов учителя
+  const teacherClasses = [...(currentUser.classes || [])];
+  if (currentUser.isHomeroomTeacher) {
+    teacherClasses.push(currentUser.homeroomClass);
+  }
   
   // Проверка: обычный учитель может добавлять задания только по своим предметам
   const isHomeroom = currentUser.isHomeroomTeacher;
@@ -4973,10 +5120,16 @@ function saveTeacherTask() {
   const users = DB.getUsers();
   const currentSchoolId = getCurrentSchoolId();
   
-  // Получаем учеников текущего класса (с учетом школы)
-  let targets = Object.values(users)
-    .filter(u => u.role === 'student' && u.class === currentClass && u.schoolId === currentSchoolId)
-    .map(u => u.username);
+  // Получаем учеников из классов учителя (с учетом школы)
+  let targets = [];
+  teacherClasses.forEach(cls => {
+    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+    classStudents.forEach(s => {
+      if (!targets.find(t => t === s.username)) {
+        targets.push(s.username);
+      }
+    });
+  });
   
   // Если выбран конкретный ученик
   if (forWho !== 'all') {
@@ -4984,7 +5137,7 @@ function saveTeacherTask() {
   }
   
   if (targets.length === 0) {
-    return toast('❌ В классе ' + currentClass + ' нет учеников', 'error');
+    return toast('❌ В классах ' + teacherClasses.join(', ') + ' нет учеников', 'error');
   }
   
   let addedCount = 0;
@@ -5004,7 +5157,7 @@ function saveTeacherTask() {
   DB.saveUsers(users);
   closeModal();
   renderPage(currentPage);
-  toast(`✅ Задание добавлено ${addedCount} ученикам класса ${currentClass}`);
+  toast(`✅ Задание добавлено ${addedCount} ученикам`);
 }
 
 function editTeacherTask(taskIdx) {
