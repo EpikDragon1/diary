@@ -494,32 +494,10 @@ tr:hover { background: var(--surface-2); }
 
 <script>
 // ============ БЕЗОПАСНОСТЬ ============
-// Секретный ключ приложения (не должен быть публичным)
-const APP_SECRET = 'diary_school_2024_secure_key_v2';
-
 // Защита от перебора паролей
 let loginAttempts = {};
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_TIME = 300000; // 5 минут
-
-// Проверка секретного ключа
-function verifyAppKey() {
-  const storedKey = localStorage.getItem('diary_appKey');
-  if (storedKey === APP_SECRET) return true;
-  
-  // Спрашиваем ключ один раз
-  const key = prompt('🔐 Введите секретный ключ приложения:');
-  if (key === APP_SECRET) {
-    localStorage.setItem('diary_appKey', APP_SECRET);
-    return true;
-  }
-  
-  if (key) {
-    alert('❌ Неверный ключ приложения!');
-    localStorage.removeItem('diary_appKey');
-  }
-  return false;
-}
 
 // Проверка попытки входа (защита от брутфорса)
 function checkLoginAttempts(username) {
@@ -627,16 +605,12 @@ let firebaseApp, firebaseDB;
 let isOnline = true;
 let firebaseInitialized = false;
 let usersCache = {}; // Кэш пользователей для быстрого доступа
-let appKeyVerified = false;
 
 try {
-  appKeyVerified = verifyAppKey();
-  if (appKeyVerified) {
-    firebaseApp = firebase.initializeApp(firebaseConfig);
-    firebaseDB = firebase.database();
-    firebaseInitialized = true;
-    console.log('✅ Firebase инициализирован');
-  }
+  firebaseApp = firebase.initializeApp(firebaseConfig);
+  firebaseDB = firebase.database();
+  firebaseInitialized = true;
+  console.log('✅ Firebase инициализирован');
   
   // Проверка онлайн-статуса
   window.addEventListener('online', () => {
@@ -666,7 +640,7 @@ function updateOnlineStatus() {
 
 // Загрузка из Firebase
 async function syncFromFirebase() {
-  if (!firebaseInitialized || !isOnline || !appKeyVerified) return;
+  if (!firebaseInitialized || !isOnline) return;
   try {
     const snapshot = await firebaseDB.ref('users').once('value');
     const data = snapshot.val();
@@ -681,7 +655,7 @@ async function syncFromFirebase() {
 
 // Подписка на обновления в реальном времени
 function subscribeToUsers() {
-  if (!firebaseInitialized || !appKeyVerified) return;
+  if (!firebaseInitialized) return;
   
   firebaseDB.ref('users').on('value', (snapshot) => {
     const data = snapshot.val();
@@ -735,8 +709,8 @@ const DB = {
     try { localStorage.setItem('diary_users', JSON.stringify(u)); } 
     catch (e) { console.error('Ошибка записи localStorage:', e); }
     
-    // Сохраняем в Firebase если онлайн и ключ проверен
-    if (firebaseInitialized && isOnline && appKeyVerified) {
+    // Сохраняем в Firebase если онлайн
+    if (firebaseInitialized && isOnline) {
       try {
         await firebaseDB.ref('users').set(u);
         usersCache = u; // Обновляем кэш
