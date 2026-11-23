@@ -2732,6 +2732,12 @@ async function removeParent(parentUsername) {
   // Удаляем родителя
   delete users[parentUsername];
   DB.saveUsers(users);
+  
+  // Удаляем из Firebase
+  if (firebaseInitialized && isOnline) {
+    firebaseDB.ref('users/' + parentUsername).remove();
+  }
+  
   saveUser();
   renderPage('teacher-parents');
   toast('🗑️ Родитель удалён');
@@ -3973,6 +3979,12 @@ function deleteTeacher(username) {
   
   delete users[username];
   DB.saveUsers(users);
+  
+  // Удаляем из Firebase
+  if (firebaseInitialized && isOnline) {
+    firebaseDB.ref('users/' + username).remove();
+  }
+  
   renderPage('admin-teachers');
   toast('🗑️ Учитель удалён');
 }
@@ -4030,6 +4042,12 @@ function deleteStudent(username) {
   
   delete users[username];
   DB.saveUsers(users);
+  
+  // Удаляем из Firebase
+  if (firebaseInitialized && isOnline) {
+    firebaseDB.ref('users/' + username).remove();
+  }
+  
   renderPage('admin-students');
   toast('🗑️ Ученик удалён');
 }
