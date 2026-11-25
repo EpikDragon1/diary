@@ -414,6 +414,11 @@ tr:hover { background: var(--surface-2); }
     
     <div class="error-msg" id="authError"></div>
     
+    <!-- Кнопка создания тестовых аккаунтов -->
+    <div style="margin-bottom:15px;text-align:center">
+      <button class="btn btn-secondary btn-sm" onclick="createTestAccounts()" style="font-size:11px">🧪 Создать тестовые аккаунты</button>
+    </div>
+    
     <!-- Форма входа -->
     <div id="loginForm" style="display:none">
       <div class="info-banner warn">
@@ -5629,6 +5634,174 @@ function showLogin() {
   document.getElementById('adminLoginForm').style.display = 'none';
   document.getElementById('loginForm').style.display = 'block';
   hideError();
+}
+
+// ============ СОЗДАНИЕ ТЕСТОВЫХ АККАУНТОВ ============
+async function createTestAccounts() {
+  const users = DB.getUsers();
+  
+  // Проверяем, не созданы ли уже
+  if (users['director1'] && users['teacher1'] && users['student1']) {
+    toast('⚠️ Тестовые аккаунты уже созданы', 'warning');
+    return;
+  }
+  
+  // Создаём школу если нет
+  const schools = getSchools();
+  let schoolId = getCurrentSchoolId();
+  if (!schools[schoolId]) {
+    schoolId = generateSchoolId();
+    schools[schoolId] = { id: schoolId, name: 'Тестовая школа', created: Date.now() };
+    saveSchools(schools);
+    setCurrentSchoolId(schoolId);
+  }
+  
+  const salt = generateSalt();
+  const hash = await hashPassword(salt + 'test123');
+  
+  // 1. Директор
+  users['director1'] = {
+    username: 'director1',
+    fullname: 'Дирекоров Директорич',
+    salt, hash,
+    role: 'director',
+    schoolId: schoolId,
+    created: Date.now(),
+    settings: { theme: 'light' }
+  };
+  
+  // 2. Учитель (классный руководитель 10А)
+  users['teacher1'] = {
+    username: 'teacher1',
+    fullname: 'Учитель Иван Петрович',
+    salt, hash,
+    role: 'teacher',
+    schoolId: schoolId,
+    subjects: ['Математика', 'Русский язык'],
+    customSubjects: [],
+    students: [],
+    homeroomClass: '10А',
+    isHomeroomTeacher: true,
+    classes: ['10А'],
+    created: Date.now(),
+    settings: { theme: 'light' }
+  };
+  
+  // 3. Ученик
+  users['student1'] = {
+    username: 'student1',
+    fullname: 'Сидоров Алексей Николаевич',
+    salt, hash,
+    role: 'student',
+    schoolId: schoolId,
+    class: '10А',
+    grades: {
+      'Математика': [
+        { value: 5, type: 'контрольная', date: '2024-11-20', teacher: 'Учитель Иван Петрович', teacherUsername: 'teacher1' },
+        { value: 4, type: 'опрос', date: '2024-11-18', teacher: 'Учитель Иван Петрович', teacherUsername: 'teacher1' },
+        { value: 5, type: 'самостоятельная', date: '2024-11-15', teacher: 'Учитель Иван Петрович', teacherUsername: 'teacher1' }
+      ],
+      'Русский язык': [
+        { value: 4, type: 'контрольная', date: '2024-11-19', teacher: 'Учитель Иван Петрович', teacherUsername: 'teacher1' },
+        { value: 5, type: 'сочинение', date: '2024-11-17', teacher: 'Учитель Иван Петрович', teacherUsername: 'teacher1' }
+      ]
+    },
+    tasks: [
+      {
+        subject: 'Математика',
+        text: 'Решить задачи №125-130',
+        dueDate: '2024-11-27',
+        done: false,
+        teacher: 'Учитель Иван Петрович',
+        teacherUsername: 'teacher1',
+        created: Date.now()
+      }
+    ],
+    schedule: {},
+    parents: ['parent1'],
+    homeroomTeacher: 'teacher1',
+    created: Date.now(),
+    settings: { theme: 'light', tempPassword: 'test123' }
+  };
+  
+  // 4. Родитель
+  users['parent1'] = {
+    username: 'parent1',
+    fullname: 'Сидорова Анна Михайловна',
+    salt, hash,
+    role: 'parent',
+    schoolId: schoolId,
+    children: ['student1'],
+    created: Date.now(),
+    settings: { theme: 'light', tempPassword: 'test123' }
+  };
+  
+  // Сохраняем
+  DB.saveUsers(users);
+  
+  // Сохраняем расписание для 10А
+  const schedule = {
+    'Понедельник': [
+      { subject: 'Математика', teacher: 'Учитель Иван Петрович', room: '205' },
+      { subject: 'Русский язык', teacher: 'Учитель Иван Петрович', room: '301' },
+      { subject: 'Физика', teacher: 'Учитель Иван Петрович', room: '102' },
+      { subject: 'История', teacher: 'Учитель Иван Петрович', room: '210' },
+      { subject: 'Физкультура', teacher: 'Учитель Иван Петрович', room: 'Спортзал' }
+    ],
+    'Вторник': [
+      { subject: 'Алгебра', teacher: 'Учитель Иван Петрович', room: '205' },
+      { subject: 'Литература', teacher: 'Учитель Иван Петрович', room: '301' },
+      { subject: 'Химия', teacher: 'Учитель Иван Петрович', room: '103' },
+      { subject: 'Английский язык', teacher: 'Учитель Иван Петрович', room: '305' },
+      { subject: 'География', teacher: 'Учитель Иван Петрович', room: '215' }
+    ],
+    'Среда': [
+      { subject: 'Геометрия', teacher: 'Учитель Иван Петрович', room: '205' },
+      { subject: 'Русский язык', teacher: 'Учитель Иван Петрович', room: '301' },
+      { subject: 'Биология', teacher: 'Учитель Иван Петрович', room: '104' },
+      { subject: 'Информатика', teacher: 'Учитель Иван Петрович', room: '401' },
+      { subject: 'ОБЖ', teacher: 'Учитель Иван Петрович', room: '220' }
+    ],
+    'Четверг': [
+      { subject: 'Математика', teacher: 'Учитель Иван Петрович', room: '205' },
+      { subject: 'Обществознание', teacher: 'Учитель Иван Петрович', room: '210' },
+      { subject: 'Физика', teacher: 'Учитель Иван Петрович', room: '102' },
+      { subject: 'Музыка', teacher: 'Учитель Иван Петрович', room: '115' },
+      { subject: 'Технология', teacher: 'Учитель Иван Петрович', room: 'Мастерская' }
+    ],
+    'Пятница': [
+      { subject: 'Русский язык', teacher: 'Учитель Иван Петрович', room: '301' },
+      { subject: 'Английский язык', teacher: 'Учитель Иван Петрович', room: '305' },
+      { subject: 'ИЗО', teacher: 'Учитель Иван Петрович', room: '116' },
+      { subject: 'Физкультура', teacher: 'Учитель Иван Петрович', room: 'Спортзал' },
+      { subject: 'Классный час', teacher: 'Учитель Иван Петрович', room: '10А' }
+    ]
+  };
+  saveClassSchedule(schoolId, '10А', schedule);
+  
+  // Сохраняем время уроков
+  const lessonTimes = {
+    1: { start: '08:00', end: '08:45' },
+    2: { start: '08:55', end: '09:40' },
+    3: { start: '09:50', end: '10:35' },
+    4: { start: '10:55', end: '11:40' },
+    5: { start: '11:50', end: '12:35' },
+    6: { start: '12:45', end: '13:30' },
+    7: { start: '13:40', end: '14:25' },
+    8: { start: '14:35', end: '15:20' }
+  };
+  saveLessonTimes(schoolId, lessonTimes);
+  
+  toast('✅ Созданы тестовые аккаунты!');
+  alert(
+    '✅ Тестовые аккаунты созданы!\n\n' +
+    '👤 Ученик: student1 / test123\n' +
+    '👨‍🏫 Учитель: teacher1 / test123\n' +
+    '👔 Директор: director1 / test123\n' +
+    '👨‍👩‍👧 Родитель: parent1 / test123\n\n' +
+    'Класс: 10А\n' +
+    'Школа: Тестовая школа'
+  );
 }
 
 // Вход для администратора или директора
