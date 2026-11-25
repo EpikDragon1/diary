@@ -15,7 +15,7 @@ import sys
 # Путь к DLL
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DLL_PATH = os.path.join(
-    BASE_DIR,
+    "C:\\Users\\user\\Downloads",
     "agent-desktop-ffi-v1.3.1-x86_64-pc-windows-msvc",
     "agent-desktop-ffi-v1.3.1-x86_64-pc-windows-msvc",
     "lib",
