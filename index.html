@@ -402,6 +402,14 @@ tr:hover { background: var(--surface-2); }
   .main-content { max-width: 100%; padding: 15px; }
   .user-info { margin: 0 10px 10px; }
 }
+
+#siteFooter {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
 </style>
 </head>
 <body>
@@ -515,18 +523,18 @@ tr:hover { background: var(--surface-2); }
   </aside>
 
   <main class="main-content" id="mainContent"></main>
-  
-  <!-- Футер с правовой информацией -->
-  <footer style="padding:15px 25px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);text-align:center;background:var(--surface-2)">
-    <p style="margin:0 0 5px">
-      © 2024 Электронный дневник | Лицензия <a href="https://opensource.org/licenses/MIT" target="_blank" style="color:var(--primary)">MIT</a>
-    </p>
-    <p style="margin:0">
-      <a href="#" onclick="showPrivacyPolicy();return false" style="color:var(--primary)">Политика конфиденциальности</a> | 
-      Обработка персональных данных в соответствии с 152-ФЗ
-    </p>
-  </footer>
 </div>
+
+<!-- Футер с правовой информацией -->
+<footer id="siteFooter" style="display:none;padding:15px 25px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);text-align:center;background:var(--surface-2);margin-top:auto">
+  <p style="margin:0 0 5px">
+    © 2026 Электронный дневник | Лицензия <a href="https://opensource.org/licenses/MIT" target="_blank" style="color:var(--primary)">MIT</a>
+  </p>
+  <p style="margin:0">
+    <a href="#" onclick="showPrivacyPolicy();return false" style="color:var(--primary)">Политика конфиденциальности</a> | 
+    Обработка персональных данных в соответствии с 152-ФЗ
+  </p>
+</footer>
 
 <!-- МОДАЛЬНЫЕ ОКНА -->
 <div class="modal-overlay" id="modalOverlay">
@@ -1004,12 +1012,14 @@ function logout() {
   document.getElementById('app').classList.remove('active');
   document.getElementById('authScreen').style.display = 'flex';
   document.getElementById('loginPassword').value = '';
+  document.getElementById('siteFooter').style.display = 'none';
   initAuthScreen();
 }
 
 function startSession() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('app').classList.add('active');
+  document.getElementById('siteFooter').style.display = 'block';
   
   // Устанавливаем schoolId если нет
   if (!currentUser.schoolId) {
