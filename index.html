@@ -411,6 +411,123 @@ tr:hover { background: var(--surface-2); }
   right: 0;
   z-index: 100;
 }
+
+/* ===== НОВАЯ ТАБЛИЦА ОЦЕНОК ===== */
+.gradebook-search {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.gradebook-search input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 15px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+.gradebook-table {
+  overflow-x: auto;
+  margin-top: 15px;
+}
+.gradebook-table table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+.gradebook-table th,
+.gradebook-table td {
+  border: 1px solid var(--border);
+  padding: 8px;
+  text-align: center;
+  min-width: 45px;
+}
+.gradebook-table th {
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.gradebook-table .student-name-col {
+  text-align: left;
+  min-width: 180px;
+  max-width: 200px;
+  font-weight: 600;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 5;
+}
+.gradebook-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+.gradebook-table tbody tr:hover .student-name-col {
+  background: rgba(59, 130, 246, 0.12);
+}
+.grade-cell {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.grade-cell:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.grade-cell.grade-5 { background: #d1fae5; color: #065f46; }
+.grade-cell.grade-4 { background: #dbeafe; color: #1e40af; }
+.grade-cell.grade-3 { background: #fef3c7; color: #92400e; }
+.grade-cell.grade-2 { background: #fee2e2; color: #991b1b; }
+.grade-cell.empty {
+  background: var(--surface-2);
+  color: transparent;
+  cursor: pointer;
+}
+.grade-cell.empty:hover {
+  background: var(--primary);
+  color: white;
+}
+.gradebook-avg {
+  font-weight: 700;
+  font-size: 14px;
+  min-width: 50px;
+}
+
+/* ===== НАСТРОЙКА ТЕМЫ ===== */
+.theme-custom-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.theme-custom-input input[type="color"] {
+  width: 50px;
+  height: 40px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.theme-custom-input input[type="text"] {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 13px;
+}
 </style>
 </head>
 <body>
@@ -1674,25 +1791,38 @@ function renderTeacherStudents() {
   // Получаем учеников из классов, где учитель ведёт предметы
   let students = [];
   const teacherClasses = [...(currentUser.classes || [])];
-  if (currentUser.isHomeroomTeacher) {
-    teacherClasses.push(currentUser.homeroomClass);
-  }
   
-  teacherClasses.forEach(cls => {
-    const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
-    classStudents.forEach(s => {
-      if (!students.find(existing => existing.username === s.username)) {
-        students.push(s);
-      }
+  // Для классного руководителя показываем ТОЛЬКО предметные классы (не классный!)
+  // Классный класс показывается в разделе "Класс"
+  if (!currentUser.isHomeroomTeacher) {
+    // Обычный учитель - все классы
+    teacherClasses.forEach(cls => {
+      const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+      classStudents.forEach(s => {
+        if (!students.find(existing => existing.username === s.username)) {
+          students.push(s);
+        }
+      });
     });
-  });
+  } else {
+    // Классный руководитель - только предметные классы (без homeroomClass)
+    teacherClasses.forEach(cls => {
+      if (cls === currentUser.homeroomClass) return; // Пропускаем классный класс
+      const classStudents = Object.values(users).filter(u => u.role === 'student' && u.class === cls && u.schoolId === currentSchoolId);
+      classStudents.forEach(s => {
+        if (!students.find(existing => existing.username === s.username)) {
+          students.push(s);
+        }
+      });
+    });
+  }
   
   const isHomeroom = currentUser.isHomeroomTeacher;
   const homeroomInfo = isHomeroom ? ` (классный руководитель ${currentUser.homeroomClass})` : '';
   
   // Классный руководитель видит все предметы своего класса, обычный учитель — только свои предметы
   const accessInfo = isHomeroom 
-    ? `Вы видите <b>все предметы</b> учеников класса ${currentUser.homeroomClass}.`
+    ? `Вы видите учеников из <b>предметных классов</b>. Все ученики вашего класса <b>${currentUser.homeroomClass}</b> — в разделе "Класс".`
     : `Вы можете ставить оценки и добавлять задания только по своим предметам: <b>${currentUser.subjects.join(', ')}</b>`;
   
   // Кнопки добавления только для классного руководителя
@@ -2204,6 +2334,9 @@ function renderTeacherGrades() {
     });
   });
   
+  // Сортируем по фамилии
+  students.sort((a, b) => a.fullname.localeCompare(b.fullname, 'ru'));
+  
   const isHomeroom = currentUser.isHomeroomTeacher;
   
   // Определяем предметы для отображения
@@ -2215,6 +2348,21 @@ function renderTeacherGrades() {
       });
     });
   }
+  
+  // Собираем все уникальные даты из оценок
+  const allDates = new Set();
+  students.forEach(s => {
+    displaySubjects.forEach(subj => {
+      const grades = s.grades && s.grades[subj] || [];
+      grades.forEach(g => allDates.add(g.date));
+    });
+  });
+  
+  // Сортируем даты по убыванию (сначала последние)
+  const sortedDates = [...allDates].sort((a, b) => new Date(b) - new Date(a));
+  
+  // Берём последние 10 дат
+  const recentDates = sortedDates.slice(0, 10);
   
   if (students.length === 0) {
     return `<div class="page-header"><h1>📊 Журнал оценок</h1></div>
@@ -2232,35 +2380,232 @@ function renderTeacherGrades() {
     </div>
     <div class="info-banner ${isHomeroom ? 'success' : 'info'}">${accessInfo}</div>
     
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Ученик</th>
-            ${displaySubjects.map(s => `<th>${s}</th>`).join('')}
-            <th>Средний</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${students.map(s => {
-            let total = 0, count = 0;
-            const cells = displaySubjects.map(subj => {
-              const grades = filterGrades(s.grades && s.grades[subj] || []);
-              const avg = grades.length ? (grades.reduce((a,g) => a + g.value, 0) / grades.length).toFixed(1) : '—';
-              if (grades.length) { total += grades.reduce((a,g) => a + g.value, 0); count += grades.length; }
-              return `<td>${grades.map(g => `<span class="grade grade-${g.value}" title="${formatDate(g.date)}">${g.value}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>'} <small style="color:var(--text-muted)">${avg}</small></td>`;
-            }).join('');
-            const totalAvg = count ? (total / count).toFixed(2) : '—';
-            return `<tr>
-              <td><b>${escapeHtml(s.fullname)}</b><br><small style="color:var(--text-muted)">${escapeHtml(s.class || '')}</small></td>
-              ${cells}
-              <td><b>${totalAvg}</b></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
+    <!-- Поиск -->
+    <div class="gradebook-search">
+      <input type="text" id="gradebookSearch" placeholder="🔍 Поиск ученика по фамилии..." oninput="filterGradebook()">
+    </div>
+    
+    <!-- Выбор предмета -->
+    <div style="margin-bottom:15px;display:flex;gap:10px;flex-wrap:wrap">
+      <select id="gradebookSubjectSelect" onchange="renderGradebookTable()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)">
+        <option value="all">Все предметы</option>
+        ${displaySubjects.map(s => `<option value="${s}">${s}</option>`).join('')}
+      </select>
+    </div>
+    
+    <div class="gradebook-table">
+      ${renderGradebookTableHTML(students, displaySubjects, recentDates)}
     </div>
   `;
+}
+
+function renderGradebookTableHTML(students, subjects, dates) {
+  if (students.length === 0) {
+    return '<div class="empty-state" style="padding:20px"><p>Нет учеников</p></div>';
+  }
+  
+  const selectedSubject = document.getElementById('gradebookSubjectSelect')?.value || 'all';
+  const filterSubject = selectedSubject === 'all' ? null : selectedSubject;
+  
+  let tableHTML = `
+    <table id="gradebookTable">
+      <thead>
+        <tr>
+          <th class="student-name-col">Ученик</th>
+          ${dates.map(d => `<th title="${formatDate(d)}">${formatDateShort(d)}</th>`).join('')}
+          <th>Ср</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${students.map(s => {
+          let total = 0, count = 0;
+          const cells = dates.map(date => {
+            let grades = [];
+            if (filterSubject) {
+              grades = (s.grades && s.grades[filterSubject] || []).filter(g => g.date === date);
+            } else {
+              grades = subjects.flatMap(subj => (s.grades && s.grades[subj] || []).filter(g => g.date === date));
+            }
+            
+            if (grades.length > 0) {
+              // Если несколько оценок за одну дату, показываем последнюю
+              const lastGrade = grades[grades.length - 1];
+              total += lastGrade.value;
+              count++;
+              return `<td><span class="grade-cell grade-${lastGrade.value}" onclick="openEditGradeCell('${s.username}', '${date}')" title="${grades.map(g => formatDate(g.date) + ' (' + g.type + ')').join('; ')}">${lastGrade.value}</span></td>`;
+            }
+            return `<td><span class="grade-cell empty" onclick="openEditGradeCell('${s.username}', '${date}')"></span></td>`;
+          }).join('');
+          
+          // Считаем средний балл
+          let studentTotal = 0, studentCount = 0;
+          subjects.forEach(subj => {
+            const grades = s.grades && s.grades[subj] || [];
+            grades.forEach(g => {
+              studentTotal += g.value;
+              studentCount++;
+            });
+          });
+          const avg = studentCount ? (studentTotal / studentCount).toFixed(2) : '—';
+          
+          return `<tr class="gradebook-row" data-name="${s.fullname.toLowerCase()}">
+            <td class="student-name-col">${escapeHtml(s.fullname)}</td>
+            ${cells}
+            <td class="gradebook-avg">${avg}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+  
+  return tableHTML;
+}
+
+function filterGradebook() {
+  const search = document.getElementById('gradebookSearch').value.toLowerCase();
+  const rows = document.querySelectorAll('.gradebook-row');
+  rows.forEach(row => {
+    const name = row.getAttribute('data-name');
+    row.style.display = name.includes(search) ? '' : 'none';
+  });
+}
+
+function openEditGradeCell(studentUsername, date) {
+  const users = DB.getUsers();
+  const student = users[studentUsername];
+  if (!student) return;
+  
+  const isHomeroom = currentUser.isHomeroomTeacher;
+  
+  // Определяем предметы
+  let allSubjects = [...new Set(currentUser.subjects)];
+  if (isHomeroom) {
+    Object.keys(student.grades || {}).forEach(subj => {
+      if (!allSubjects.includes(subj)) allSubjects.push(subj);
+    });
+  }
+  
+  // Проверяем текущие оценки за эту дату
+  const existingGrades = [];
+  allSubjects.forEach(subj => {
+    const grades = student.grades && student.grades[subj] || [];
+    grades.forEach(g => {
+      if (g.date === date) {
+        existingGrades.push({ subject: subj, grade: g });
+      }
+    });
+  });
+  
+  openModal(`
+    <div class="modal-header">
+      <h3>📝 Оценка: ${escapeHtml(student.fullname)}</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div style="padding:15px">
+      <p style="color:var(--text-muted);margin-bottom:15px">Дата: <b>${formatDate(date)}</b></p>
+      
+      <div class="form-group">
+        <label>Предмет</label>
+        <select id="editGradeSubject" onchange="updateEditGradeOptions()">
+          <option value="">— Выберите предмет —</option>
+          ${allSubjects.map(s => `<option value="${s}">${s}</option>`).join('')}
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Оценка</label>
+        <select id="editGradeValue">
+          <option value="5">5 (Отлично)</option>
+          <option value="4">4 (Хорошо)</option>
+          <option value="3">3 (Удовл.)</option>
+          <option value="2">2 (Неудовл.)</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Тип работы</label>
+        <select id="editGradeType">
+          <option>Ответ на уроке</option>
+          <option>Контрольная</option>
+          <option>Самостоятельная</option>
+          <option>Домашняя работа</option>
+          <option>Тест</option>
+        </select>
+      </div>
+      
+      <div id="existingGradesInfo" style="margin-top:15px;padding:10px;background:var(--surface-2);border-radius:8px;font-size:12px">
+        ${existingGrades.length > 0 ? 
+          '<b>Уже есть оценки за этот день:</b><br>' + existingGrades.map(eg => `${eg.grade.type}: ${eg.subject} — <b>${eg.grade.value}</b>`).join('<br>') :
+          '<span style="color:var(--text-muted)">Нет оценок за этот день</span>'
+        }
+      </div>
+      
+      <div class="modal-actions" style="margin-top:15px">
+        <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+        <button class="btn btn-primary" onclick="saveEditGrade('${studentUsername}', '${date}')">Сохранить</button>
+        <button class="btn btn-danger" onclick="deleteGrade('${studentUsername}', '${date}')">Удалить</button>
+      </div>
+    </div>
+  `);
+}
+
+function updateEditGradeOptions() {
+  // Можно добавить логику для обновления доступных оценок
+}
+
+function saveEditGrade(studentUsername, date) {
+  const subject = document.getElementById('editGradeSubject').value;
+  const value = parseInt(document.getElementById('editGradeValue').value);
+  const type = document.getElementById('editGradeType').value;
+  
+  if (!subject) return toast('Выберите предмет', 'error');
+  
+  const users = DB.getUsers();
+  const student = users[studentUsername];
+  if (!student) return;
+  
+  if (!student.grades) student.grades = {};
+  if (!student.grades[subject]) student.grades[subject] = [];
+  
+  // Удаляем старые оценки за эту дату и предмет
+  student.grades[subject] = student.grades[subject].filter(g => g.date !== date);
+  
+  // Добавляем новую оценку
+  student.grades[subject].push({
+    value: value,
+    date: date,
+    type: type
+  });
+  
+  // Сохраняем
+  users[studentUsername] = student;
+  DB.saveUsers();
+  
+  closeModal();
+  toast('✅ Оценка сохранена');
+  renderPage('teacher-grades');
+}
+
+function deleteGrade(studentUsername, date) {
+  if (!confirm('Удалить ВСЕ оценки за эту дату?')) return;
+  
+  const users = DB.getUsers();
+  const student = users[studentUsername];
+  if (!student) return;
+  
+  // Удаляем все оценки за эту дату
+  if (student.grades) {
+    Object.keys(student.grades).forEach(subj => {
+      student.grades[subj] = student.grades[subj].filter(g => g.date !== date);
+    });
+  }
+  
+  users[studentUsername] = student;
+  DB.saveUsers();
+  
+  closeModal();
+  toast('🗑️ Оценки удалены');
+  renderPage('teacher-grades');
 }
 
 // ============ УЧИТЕЛЬ: ПЕЧАТЬ ПАРОЛЕЙ ============
@@ -5071,6 +5416,19 @@ function renderSettings() {
           <span class="slider"></span>
         </label>
       </div>
+      
+      <div class="setting-row" style="flex-direction:column;align-items:stretch">
+        <div style="margin-bottom:8px">
+          <div style="font-weight:600">Своя тема оформления</div>
+          <div style="font-size:12px;color:var(--text-muted)">Введите цвет primary (hex, rgb или название)</div>
+        </div>
+        <div class="theme-custom-input">
+          <input type="color" id="themeColorPicker" value="${getThemeColor()}" onchange="applyCustomTheme(this.value)">
+          <input type="text" id="themeColorInput" placeholder="#3b82f6 или blue" value="${currentUser.settings.customTheme || ''}" onblur="applyCustomTheme(this.value)">
+          <button class="btn btn-secondary btn-sm" onclick="resetTheme()">Сброс</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:5px">Примеры: #ff5733, rgb(255,87,51), blue, red</div>
+      </div>
     </div>
     
     <div class="settings-section">
@@ -5136,6 +5494,44 @@ function toggleTheme() {
   if (isDark) document.documentElement.setAttribute('data-theme', 'dark');
   else document.documentElement.removeAttribute('data-theme');
   saveUser();
+}
+
+function getThemeColor() {
+  // Возвращает текущий primary цвет в hex формате
+  const computed = getComputedStyle(document.documentElement);
+  const color = computed.getPropertyValue('--primary').trim();
+  if (color.startsWith('#') || color.startsWith('rgb')) return color;
+  return '#3b82f6'; // default blue
+}
+
+function applyCustomTheme(color) {
+  if (!color || color.trim() === '') return;
+  
+  // Сохраняем кастомную тему
+  currentUser.settings.customTheme = color.trim();
+  saveUser();
+  
+  // Применяем цвет
+  document.documentElement.style.setProperty('--primary', color.trim());
+  
+  toast('✅ Тема обновлена');
+}
+
+function resetTheme() {
+  // Удаляем кастомную тему
+  delete currentUser.settings.customTheme;
+  saveUser();
+  
+  // Сбрасываем цвет
+  document.documentElement.style.removeProperty('--primary');
+  
+  // Обновляем поля ввода
+  const picker = document.getElementById('themeColorPicker');
+  const input = document.getElementById('themeColorInput');
+  if (picker) picker.value = '#3b82f6';
+  if (input) input.value = '';
+  
+  toast('🔄 Тема сброшена');
 }
 
 function openPasswordModal() {
@@ -5626,6 +6022,11 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
 function formatDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+
+function formatDateShort(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
 }
 
 function getTaskBadge(dueDate) {
