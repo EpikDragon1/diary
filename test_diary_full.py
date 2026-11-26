@@ -94,22 +94,28 @@ class DiaryTester:
         """Открытие браузера с дневником"""
         print(f"\n🌐 Открытие браузера: {DIARY_URL}")
         
-        # Пробуем открыть в Chrome
-        chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-        if os.path.exists(chrome_path):
-            subprocess.Popen([chrome_path, "--new-window", DIARY_URL])
-            print("✅ Chrome открыт")
+        # Пробуем открыть в Яндекс Браузере (предпочтительный)
+        yandex_path = r"C:\Program Files\Yandex\YandexBrowser\application\browser.exe"
+        if os.path.exists(yandex_path):
+            subprocess.Popen([yandex_path, DIARY_URL])
+            print("✅ Яндекс Браузер открыт")
         else:
-            # Пробуем Firefox
-            firefox_path = r"C:\Program Files\Mozilla Firefox\firefox.exe"
-            if os.path.exists(firefox_path):
-                subprocess.Popen([firefox_path, "--new-window", DIARY_URL])
-                print("✅ Firefox открыт")
+            # Пробуем Chrome
+            chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            if os.path.exists(chrome_path):
+                subprocess.Popen([chrome_path, "--new-window", DIARY_URL])
+                print("✅ Chrome открыт")
             else:
-                print("⚠️ Браузер не найден, откройте вручную")
-                print(f"   URL: {DIARY_URL}")
+                # Пробуем Firefox
+                firefox_path = r"C:\Program Files\Mozilla Firefox\firefox.exe"
+                if os.path.exists(firefox_path):
+                    subprocess.Popen([firefox_path, "--new-window", DIARY_URL])
+                    print("✅ Firefox открыт")
+                else:
+                    print("⚠️ Браузер не найден, откройте вручную")
+                    print(f"   URL: {DIARY_URL}")
         
-        time.sleep(3)  # Ждём загрузки
+        time.sleep(5)  # Ждём загрузки
     
     def take_snapshot(self):
         """Делает снимок accessibility дерева"""
