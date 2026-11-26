@@ -3200,9 +3200,57 @@ function renderAdminDashboard() {
           🚨 <div><b>Внимание!</b> Это действие безвозвратно удалит ВСЕ данные системы: пользователей, оценки, задания.</div>
         </div>
         <button class="btn btn-danger" onclick="adminResetFromPanel()">🔄 Сбросить все данные</button>
+        
+        <hr style="margin:20px 0;border:none;border-top:1px solid var(--border)">
+        
+        <div class="info-banner warn" style="margin-bottom:15px">
+          ⚠️ <div><b>Очистить данные</b> — удаляет всех пользователей кроме администратора. Учителей, учеников, директоров, родителей.</div>
+        </div>
+        <button class="btn btn-warning" onclick="clearAllDataExceptAdmin()">🧹 Очистить все данные (кроме админа)</button>
       </div>
     </div>
   `;
+}
+
+// ============ ОЧИСТКА ДАННЫХ (КРОМЕ АДМИНА) ============
+function clearAllDataExceptAdmin() {
+  if (!confirm('⚠️ Удалить ВСЕХ пользователей кроме администратора?\n\nБудут удалены:\n- Учителя\n- Ученики\n- Директора\n- Родители\n\nАдминистратор останется!')) return;
+  
+  const users = DB.getUsers();
+  let deletedCount = 0;
+  const usernamesToDelete = [];
+  
+  // Собираем пользователей для удаления
+  Object.keys(users).forEach(username => {
+    if (username !== 'admin') {
+      usernamesToDelete.push(username);
+      deletedCount++;
+    }
+  });
+  
+  if (deletedCount === 0) {
+    toast('Нет пользователей для удаления', 'warning');
+    return;
+  }
+  
+  if (!confirm(`Удалить ${deletedCount} пользователей?`)) return;
+  
+  // Удаляем
+  usernamesToDelete.forEach(username => {
+    delete users[username];
+  });
+  
+  DB.saveUsers(users);
+  
+  // Удаляем из Firebase
+  if (firebaseInitialized && isOnline) {
+    usernamesToDelete.forEach(username => {
+      firebaseDB.ref('users/' + username).remove();
+    });
+  }
+  
+  toast(`✅ Удалено ${deletedCount} пользователей`);
+  setTimeout(() => location.reload(), 1000);
 }
 
 // ============ АДМИН: ШКОЛЫ ============
@@ -3973,12 +4021,21 @@ function deleteTeacher(username) {
   const teacher = users[username];
   if (!teacher) return toast('Учитель не найден', 'error');
   
-  // Собираем учеников и родителей учителя
+  // Собираем учеников учителя (по классу если классный руководитель)
   const studentsOfTeacher = [];
   const parentsOfTeacher = [];
   
+  // Если учитель классный руководитель — ищем учеников его класса
+  if (teacher.isHomeroomTeacher && teacher.homeroomClass) {
+    Object.values(users).forEach(u => {
+      if (u.role === 'student' && u.class === teacher.homeroomClass) {
+        studentsOfTeacher.push(u.username);
+      }
+    });
+  }
+  // Также ищем учеников привязанных по teacherUsername
   Object.values(users).forEach(u => {
-    if (u.role === 'student' && u.teacherUsername === username) {
+    if (u.role === 'student' && u.teacherUsername === username && !studentsOfTeacher.includes(u.username)) {
       studentsOfTeacher.push(u.username);
     }
     if (u.role === 'parent' && u.teacherUsername === username) {
@@ -4014,7 +4071,7 @@ function deleteTeacher(username) {
     return;
   }
   
-  // Есть привязанные ученики и родители - спрашиваем
+  // Есть привязанные ученики и родители - спрашиваем с галочкой
   openModal(`
     <div class="modal-header">
       <h3>🗑️ Удаление учителя</h3>
@@ -4027,20 +4084,29 @@ function deleteTeacher(username) {
         <li><b>${countStudents}</b> учеников</li>
         <li><b>${countParents}</b> родителей</li>
       </ul>
-      <p>Что вы хотите сделать?</p>
+      <div style="margin:15px 0;padding:12px;background:var(--surface-2);border-radius:8px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="deleteWithStudents" checked style="width:18px;height:18px;cursor:pointer">
+          <span>🗑️ <b>Удалить вместе с учениками и родителями</b></span>
+        </label>
+        <p style="margin:8px 0 0;font-size:12px;color:var(--text-muted)">
+          Если не отметить — ученики останутся без классного руководителя
+        </p>
+      </div>
     </div>
-    <div class="modal-actions" style="flex-direction:column;gap:10px">
-      <button class="btn btn-danger" onclick="deleteTeacherWithAll('${username}')">
-        🗑️ Удалить учителя, учеников и родителей
-      </button>
-      <button class="btn btn-secondary" onclick="deleteTeacherOnly('${username}')">
-        👤 Удалить только учителя (ученики останутся)
-      </button>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-danger" onclick="confirmDeleteTeacher('${username}')">🗑️ Удалить</button>
     </div>
   `);
 }
 
-function deleteTeacherWithAll(username) {
+function confirmDeleteTeacher(username) {
+  const deleteWithStudents = document.getElementById('deleteWithStudents')?.checked !== false;
+  deleteTeacherAction(username, deleteWithStudents);
+}
+
+function deleteTeacherAction(username, deleteWithStudents) {
   const users = DB.getUsers();
   const teacher = users[username];
   if (!teacher) return;
@@ -4049,8 +4115,17 @@ function deleteTeacherWithAll(username) {
   const studentsToDelete = [];
   const parentsToDelete = [];
   
+  // Если учитель классный руководитель — ищем учеников его класса
+  if (deleteWithStudents && teacher.isHomeroomTeacher && teacher.homeroomClass) {
+    Object.values(users).forEach(u => {
+      if (u.role === 'student' && u.class === teacher.homeroomClass) {
+        studentsToDelete.push(u.username);
+      }
+    });
+  }
+  // Также ищем учеников привязанных по teacherUsername
   Object.values(users).forEach(u => {
-    if (u.role === 'student' && u.teacherUsername === username) {
+    if (u.role === 'student' && u.teacherUsername === username && !studentsToDelete.includes(u.username)) {
       studentsToDelete.push(u.username);
     }
     if (u.role === 'parent' && u.teacherUsername === username) {
@@ -4058,16 +4133,19 @@ function deleteTeacherWithAll(username) {
     }
   });
   
-  studentsToDelete.forEach(s => {
-    const student = users[s];
-    if (student && student.parents) {
-      student.parents.forEach(p => {
-        if (!parentsToDelete.includes(p)) {
-          parentsToDelete.push(p);
-        }
-      });
-    }
-  });
+  // Собираем родителей учеников
+  if (deleteWithStudents) {
+    studentsToDelete.forEach(s => {
+      const student = users[s];
+      if (student && student.parents) {
+        student.parents.forEach(p => {
+          if (!parentsToDelete.includes(p)) {
+            parentsToDelete.push(p);
+          }
+        });
+      }
+    });
+  }
   
   // Удаляем из списков других учителей
   Object.values(users).forEach(u => {
@@ -4079,51 +4157,32 @@ function deleteTeacherWithAll(username) {
     }
   });
   
-  // Удаляем всех
-  studentsToDelete.forEach(s => delete users[s]);
-  parentsToDelete.forEach(p => delete users[p]);
+  if (deleteWithStudents) {
+    // Удаляем всех
+    studentsToDelete.forEach(s => delete users[s]);
+    parentsToDelete.forEach(p => delete users[p]);
+  }
+  
   delete users[username];
   DB.saveUsers(users);
   
   // Удаляем из Firebase
   if (firebaseInitialized && isOnline) {
     firebaseDB.ref('users/' + username).remove();
-    studentsToDelete.forEach(s => firebaseDB.ref('users/' + s).remove());
-    parentsToDelete.forEach(p => firebaseDB.ref('users/' + p).remove());
+    if (deleteWithStudents) {
+      studentsToDelete.forEach(s => firebaseDB.ref('users/' + s).remove());
+      parentsToDelete.forEach(p => firebaseDB.ref('users/' + p).remove());
+    }
   }
   
   closeModal();
   renderPage('admin-teachers');
-  toast(`🗑️ Учитель, ${studentsToDelete.length} учеников и ${parentsToDelete.length} родителей удалены`);
-}
-
-function deleteTeacherOnly(username) {
-  const users = DB.getUsers();
-  const teacher = users[username];
-  if (!teacher) return;
   
-  // Удаляем из списков других учителей
-  Object.values(users).forEach(u => {
-    if (u.role === 'teacher' && u.students) {
-      u.students = u.students.filter(s => s !== username);
-    }
-    if (u.role === 'student' && u.homeroomTeacher === username) {
-      u.homeroomTeacher = null;
-    }
-  });
-  
-  // Удаляем только учителя
-  delete users[username];
-  DB.saveUsers(users);
-  
-  // Удаляем из Firebase
-  if (firebaseInitialized && isOnline) {
-    firebaseDB.ref('users/' + username).remove();
+  if (deleteWithStudents) {
+    toast(`🗑️ Учитель, ${studentsToDelete.length} учеников и ${parentsToDelete.length} родителей удалены`);
+  } else {
+    toast('🗑️ Учитель удалён (ученики сохранены)');
   }
-  
-  closeModal();
-  renderPage('admin-teachers');
-  toast('🗑️ Учитель удалён (ученики и родители сохранены)');
 }
 
 // ============ АДМИН: УЧЕНИКИ ============
