@@ -87,6 +87,7 @@ body {
   width: 260px; background: var(--surface); border-right: 1px solid var(--border);
   padding: 15px 0; display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh;
+  z-index: 200;
 }
 .sidebar-header { padding: 0 18px 15px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
 .sidebar-header h2 { font-size: 18px; display: flex; align-items: center; gap: 8px; }
@@ -129,7 +130,7 @@ body {
 }
 .sidebar-footer { padding: 12px 15px; border-top: 1px solid var(--border); }
 
-.main-content { flex: 1; padding: 25px; overflow-y: auto; max-width: calc(100vw - 260px); }
+.main-content { flex: 1; padding: 25px 25px 60px; overflow-y: auto; max-width: calc(100vw - 260px); }
 .page-header {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
