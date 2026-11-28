@@ -6291,11 +6291,11 @@ async function createTestAccounts() {
   // 2. Учитель (классный руководитель 10А)
   users['teacher1'] = {
     username: 'teacher1',
-    fullname: 'Учитель Иван Петрович',
+    fullname: 'Иван Петрович',
     salt, hash,
     role: 'teacher',
     schoolId: schoolId,
-    subjects: ['Математика', 'Русский язык'],
+    subjects: ['Математика', 'Алгебра', 'Геометрия'],
     customSubjects: [],
     students: [],
     homeroomClass: '10А',
@@ -6357,42 +6357,42 @@ async function createTestAccounts() {
   // Сохраняем
   DB.saveUsers(users);
   
-  // Сохраняем расписание для 10А
+  // Сохраняем расписание для 10А (разные учителя для разных предметов)
   const schedule = {
     'Понедельник': [
-      { subject: 'Математика', teacher: 'Учитель Иван Петрович', room: '205' },
-      { subject: 'Русский язык', teacher: 'Учитель Иван Петрович', room: '301' },
-      { subject: 'Физика', teacher: 'Учитель Иван Петрович', room: '102' },
-      { subject: 'История', teacher: 'Учитель Иван Петрович', room: '210' },
-      { subject: 'Физкультура', teacher: 'Учитель Иван Петрович', room: 'Спортзал' }
+      { subject: 'Математика', teacher: 'Иван Петрович', room: '205' },
+      { subject: 'Русский язык', teacher: 'Мария Иванова', room: '301' },
+      { subject: 'Физика', teacher: 'Сергей Сидоров', room: '102' },
+      { subject: 'История', teacher: 'Анна Петрова', room: '210' },
+      { subject: 'Физкультура', teacher: 'Дмитрий Орлов', room: 'Спортзал' }
     ],
     'Вторник': [
-      { subject: 'Алгебра', teacher: 'Учитель Иван Петрович', room: '205' },
-      { subject: 'Литература', teacher: 'Учитель Иван Петрович', room: '301' },
-      { subject: 'Химия', teacher: 'Учитель Иван Петрович', room: '103' },
-      { subject: 'Английский язык', teacher: 'Учитель Иван Петрович', room: '305' },
-      { subject: 'География', teacher: 'Учитель Иван Петрович', room: '215' }
+      { subject: 'Алгебра', teacher: 'Иван Петрович', room: '205' },
+      { subject: 'Литература', teacher: 'Мария Иванова', room: '301' },
+      { subject: 'Химия', teacher: 'Елена Козлова', room: '103' },
+      { subject: 'Английский язык', teacher: 'Ольга Смирнова', room: '305' },
+      { subject: 'География', teacher: 'Павел Новиков', room: '215' }
     ],
     'Среда': [
-      { subject: 'Геометрия', teacher: 'Учитель Иван Петрович', room: '205' },
-      { subject: 'Русский язык', teacher: 'Учитель Иван Петрович', room: '301' },
-      { subject: 'Биология', teacher: 'Учитель Иван Петрович', room: '104' },
-      { subject: 'Информатика', teacher: 'Учитель Иван Петрович', room: '401' },
-      { subject: 'ОБЖ', teacher: 'Учитель Иван Петрович', room: '220' }
+      { subject: 'Геометрия', teacher: 'Иван Петрович', room: '205' },
+      { subject: 'Русский язык', teacher: 'Мария Иванова', room: '301' },
+      { subject: 'Биология', teacher: 'Наталья Волкова', room: '104' },
+      { subject: 'Информатика', teacher: 'Алексей Морозов', room: '401' },
+      { subject: 'ОБЖ', teacher: 'Игорь Соколов', room: '220' }
     ],
     'Четверг': [
-      { subject: 'Математика', teacher: 'Учитель Иван Петрович', room: '205' },
-      { subject: 'Обществознание', teacher: 'Учитель Иван Петрович', room: '210' },
-      { subject: 'Физика', teacher: 'Учитель Иван Петрович', room: '102' },
-      { subject: 'Музыка', teacher: 'Учитель Иван Петрович', room: '115' },
-      { subject: 'Технология', teacher: 'Учитель Иван Петрович', room: 'Мастерская' }
+      { subject: 'Математика', teacher: 'Иван Петрович', room: '205' },
+      { subject: 'Обществознание', teacher: 'Анна Петрова', room: '210' },
+      { subject: 'Физика', teacher: 'Сергей Сидоров', room: '102' },
+      { subject: 'Музыка', teacher: 'Ксения Лебедева', room: '115' },
+      { subject: 'Технология', teacher: 'Владимир Кузнецов', room: 'Мастерская' }
     ],
     'Пятница': [
-      { subject: 'Русский язык', teacher: 'Учитель Иван Петрович', room: '301' },
-      { subject: 'Английский язык', teacher: 'Учитель Иван Петрович', room: '305' },
-      { subject: 'ИЗО', teacher: 'Учитель Иван Петрович', room: '116' },
-      { subject: 'Физкультура', teacher: 'Учитель Иван Петрович', room: 'Спортзал' },
-      { subject: 'Классный час', teacher: 'Учитель Иван Петрович', room: '10А' }
+      { subject: 'Русский язык', teacher: 'Мария Иванова', room: '301' },
+      { subject: 'Английский язык', teacher: 'Ольга Смирнова', room: '305' },
+      { subject: 'ИЗО', teacher: 'Ксения Лебедева', room: '116' },
+      { subject: 'Физкультура', teacher: 'Дмитрий Орлов', room: 'Спортзал' },
+      { subject: 'Классный час', teacher: 'Иван Петрович', room: '205' }
     ]
   };
   saveClassSchedule(schoolId, '10А', schedule);
