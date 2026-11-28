@@ -1566,9 +1566,17 @@ function renderTeacherSchedule() {
     teacherSchedule[day].sort((a, b) => a.lessonNum - b.lessonNum);
   });
   
+  // Проверяем есть ли уроки
+  const hasLessons = days.some(day => teacherSchedule[day].length > 0);
+  
   return `
     <div class="page-header"><h1>📅 Моё расписание</h1></div>
-    <div class="info-banner info">ℹ️ Расписание уроков, которые вы ведёте в школе "${escapeHtml(currentSchoolName)}"</div>
+    <div class="info-banner ${hasLessons ? 'info' : 'warning'}">
+      ${hasLessons ? 
+        `ℹ️ Уроки, которые вы ведёте: <b>${currentUser.subjects.join(', ')}</b>` :
+        `⚠️ У вас пока нет уроков в расписании. Директор может добавить вас в расписание классов.`
+      }
+    </div>
     <div class="schedule-grid">
       ${days.map(day => {
         const lessons = teacherSchedule[day] || [];
@@ -2066,9 +2074,17 @@ function renderHomeroomSchedule() {
   const lessonTimes = getLessonTimes(schoolId);
   const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
   
+  // Проверяем есть ли расписание
+  const hasSchedule = days.some(day => (schedule?.[day] || []).length > 0);
+  
   return `
     <div class="page-header"><h1>📅 Расписание ${className}</h1></div>
-    <div class="info-banner info">ℹ️ Полное расписание вашего класса со временем уроков</div>
+    <div class="info-banner ${hasSchedule ? 'success' : 'warning'}">
+      ${hasSchedule ?
+        `🏫 Полное расписание вашего класса ${className}. Здесь показаны ВСЕ уроки класса.` :
+        `⚠️ Расписание для класса ${className} ещё не создано. Директор может создать его в разделе "Расписание".`
+      }
+    </div>
     <div class="schedule-grid">
       ${days.map(day => {
         const lessons = schedule?.[day] || [];
