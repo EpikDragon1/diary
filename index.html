@@ -395,13 +395,19 @@ tr:hover { background: var(--surface-2); }
 .rank-other { background: var(--surface-2); color: var(--text-muted); }
 
 @media (max-width: 768px) {
-  .app.active { flex-direction: column; }
   .sidebar { width: 100%; height: auto; position: relative; padding: 10px 0; }
-  .nav-menu { display: flex; overflow-x: auto; padding: 0 10px; }
-  .nav-item { white-space: nowrap; }
   .sidebar-footer { display: none; }
   .main-content { max-width: 100%; padding: 15px; }
   .user-info { margin: 0 10px 10px; }
+  
+  /* Футер на мобильных - не перекрывает контент */
+  #siteFooter {
+    position: relative !important;
+    z-index: 1 !important;
+    padding: 10px !important;
+    font-size: 10px !important;
+  }
+  .main-content { padding-bottom: 80px !important; }
 }
 
 #siteFooter {
@@ -1164,6 +1170,11 @@ function startSession() {
     document.documentElement.setAttribute('data-theme', 'dark');
   } else {
     document.documentElement.removeAttribute('data-theme');
+  }
+  
+  // Применяем кастомную тему если есть
+  if (currentUser.settings.customTheme) {
+    document.documentElement.style.setProperty('--primary', currentUser.settings.customTheme);
   }
   
   // Инициализация переключателя классов для учителей
@@ -2579,7 +2590,7 @@ function saveEditGrade(studentUsername, date) {
   
   // Сохраняем
   users[studentUsername] = student;
-  DB.saveUsers();
+  DB.saveUsers(users);
   
   closeModal();
   toast('✅ Оценка сохранена');
@@ -2601,7 +2612,7 @@ function deleteGrade(studentUsername, date) {
   }
   
   users[studentUsername] = student;
-  DB.saveUsers();
+  DB.saveUsers(users);
   
   closeModal();
   toast('🗑️ Оценки удалены');
@@ -2897,7 +2908,7 @@ function renderTeacherStats() {
     
     <div class="cards-grid">
       <div class="card"><div class="card-icon blue">👨‍🎓</div><div class="card-value">${students.length}</div><div class="card-label">Учеников в классах ${teacherClasses.join(', ')}</div></div>
-      <div class="card"><div class="card-icon green">📊</div><div class="card-value">${subjectStats.length}</div><div class="card-label">Предметов</div></div>
+      <div class="card"><div class="card-icon green">📊</div><div class="card-value">${Object.keys(subjectStats).length}</div><div class="card-label">Предметов</div></div>
     </div>
     
     <div class="stats-grid">
@@ -5497,22 +5508,40 @@ function toggleTheme() {
 }
 
 function getThemeColor() {
-  // Возвращает текущий primary цвет в hex формате
-  const computed = getComputedStyle(document.documentElement);
-  const color = computed.getPropertyValue('--primary').trim();
-  if (color.startsWith('#') || color.startsWith('rgb')) return color;
+  // Возвращает текущий primary цвет в hex формате для picker
+  if (currentUser.settings.customTheme) {
+    const color = currentUser.settings.customTheme.trim();
+    // Если это hex, возвращаем как есть
+    if (color.startsWith('#') && color.length === 7) return color;
+  }
   return '#3b82f6'; // default blue
 }
 
 function applyCustomTheme(color) {
-  if (!color || color.trim() === '') return;
+  if (!color || color.trim() === '') {
+    // Если пусто — сбрасываем
+    resetTheme();
+    return;
+  }
+  
+  const cleanColor = color.trim();
   
   // Сохраняем кастомную тему
-  currentUser.settings.customTheme = color.trim();
+  currentUser.settings.customTheme = cleanColor;
   saveUser();
   
   // Применяем цвет
-  document.documentElement.style.setProperty('--primary', color.trim());
+  document.documentElement.style.setProperty('--primary', cleanColor);
+  
+  // Обновляем поля ввода
+  const picker = document.getElementById('themeColorPicker');
+  const input = document.getElementById('themeColorInput');
+  if (input) input.value = cleanColor;
+  
+  // Если цвет hex, обновляем picker
+  if (cleanColor.startsWith('#') && cleanColor.length === 7) {
+    if (picker) picker.value = cleanColor;
+  }
   
   toast('✅ Тема обновлена');
 }
